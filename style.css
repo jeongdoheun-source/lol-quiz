@@ -115,3 +115,7 @@ select{font:inherit;background:var(--bg);color:var(--txt);border:1px solid var(-
 .tierbars{display:grid;gap:8px}
 .tb{display:grid;grid-template-columns:64px 1fr 44px;gap:10px;align-items:center;font-size:13px}
 .tbar{height:8px;background:var(--line);border-radius:6px;overflow:hidden}.tbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--gold3),var(--gold))}
+.chip.tier[aria-pressed="true"].t5{border-color:#e84057}
+.badge.t5{color:#ff8fa3;border-color:#8a2638;background:rgba(232,64,87,.1)}
+.exp{white-space:pre-line;line-height:1.65;margin-top:4px}
+.fb .exp{font-size:14px}

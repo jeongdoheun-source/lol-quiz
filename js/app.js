@@ -3,8 +3,8 @@
  *  app.js — 화면
  * ===================================================================== */
 const srcTag = s => s === 'DD' ? `<span class="src dd">Data Dragon ${esc(S.dd)}</span>` : s === 'CD' ? `<span class="src cd">CommunityDragon ${esc(S.cdPath)}</span>` : '';
-let selCats = new Set(store.get('cats2', ['champ', 'skill', 'item', 'summ', 'rune']));
-let selTiers = new Set(store.get('tiers', [1, 2, 3, 4]));
+let selCats = new Set(store.get('cats2', ['champ', 'skill', 'item', 'summ', 'rune']).filter(k => k in CATS));
+let selTiers = new Set(store.get('tiers5', [1, 2, 3, 4, 5]).filter(k => k in TIER));
 let selCnt = store.get('cnt', 10);
 const best = () => store.get('best2', { acc: null, streak: 0, pts: 0 });
 
@@ -42,7 +42,7 @@ function renderHome() {
   else eb.hidden = true;
 }
 $('#catChips').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b || b.disabled) return; const k = b.dataset.cat; selCats.has(k) ? selCats.delete(k) : selCats.add(k); store.set('cats2', [...selCats]); renderHome(); });
-$('#tierChips').addEventListener('click', e => { const b = e.target.closest('[data-tier]'); if (!b) return; const k = +b.dataset.tier; selTiers.has(k) ? selTiers.delete(k) : selTiers.add(k); store.set('tiers', [...selTiers]); renderHome(); });
+$('#tierChips').addEventListener('click', e => { const b = e.target.closest('[data-tier]'); if (!b) return; const k = +b.dataset.tier; selTiers.has(k) ? selTiers.delete(k) : selTiers.add(k); store.set('tiers5', [...selTiers]); renderHome(); });
 $('#cntChips').addEventListener('click', e => { const b = e.target.closest('[data-cnt]'); if (!b) return; selCnt = +b.dataset.cnt; store.set('cnt', selCnt); renderHome(); });
 $('#startBtn').addEventListener('click', startGame);
 $('#errBox').addEventListener('click', e => { if (e.target.closest('#retryLoad')) { ERRORS.length = 0; checkForUpdate('force'); renderHome(); } });
@@ -118,7 +118,7 @@ function answer(i) {
   const srcs = [...new Set((q.srcs || []).filter(Boolean))];
   const last = G.total && G.idx >= G.total;
   $('#fb').innerHTML = `<div class="fb"><div class="t ${ok ? 'ok' : 'bad'}">${ok ? `정답! +${t.pts}점` : '오답 — 정답: ' + esc(q.answer)}</div>
-      <div>${esc(q.explain || '')}</div>
+      <div class="exp">${esc(q.explain || '')}</div>
       <div>${srcs.map(srcTag).join('')}${srcs.length > 1 ? '<span class="src fill">두 소스 병합</span>' : ''}</div></div>
     <div class="row" style="margin-top:14px"><button class="btn primary" id="nextBtn" style="flex:1">${last ? '결과 보기' : '다음 문제'}</button>${G.total ? '' : '<button class="btn ghost" id="endBtn">그만하기</button>'}</div>`;
   updateProg();
@@ -135,7 +135,7 @@ function finish() {
   if (G.pts > (b.pts || 0)) { b.pts = G.pts; nb = true; }
   store.set('best2', b);
   const byTier = {}; G.hist.forEach(h => { const t = h.q.tier; byTier[t] = byTier[t] || { n: 0, ok: 0 }; byTier[t].n++; if (h.ok) byTier[t].ok++; });
-  let level = null; for (const t of [4, 3, 2, 1]) { const x = byTier[t]; if (x && x.n >= 2 && x.ok / x.n >= 0.7) { level = TIER[t]; break; } }
+  let level = null; for (const t of [5, 4, 3, 2, 1]) { const x = byTier[t]; if (x && x.n >= 2 && x.ok / x.n >= 0.7) { level = TIER[t]; break; } }
   const wrong = G.hist.filter(h => !h.ok);
   $('#result').innerHTML = `<h1>결과</h1>
     <p class="sub">패치 ${esc(S.dd)} 기준${nb ? ' · 🏆 최고 기록 갱신!' : ''}</p>
@@ -145,12 +145,12 @@ function finish() {
       <div class="stat"><b>${G.bestStreak}</b><span>최고 연속</span></div>
     </div>
     <div class="label">난이도별 정답률</div>
-    <div class="tierbars">${[1, 2, 3, 4].filter(t => byTier[t]).map(t => { const x = byTier[t], p = Math.round(x.ok / x.n * 100);
+    <div class="tierbars">${[1, 2, 3, 4, 5].filter(t => byTier[t]).map(t => { const x = byTier[t], p = Math.round(x.ok / x.n * 100);
       return `<div class="tb"><span class="badge ${TIER[t].cls}">${TIER[t].name}</span><div class="tbar"><i style="width:${p}%"></i></div><span>${x.ok}/${x.n}</span></div>`; }).join('')}</div>
     ${level ? `<p class="sub" style="margin-top:12px">지식 수준: <b>${level.range}</b> 문제를 70% 이상 맞혔어요.</p>` : ''}
     <div class="row" style="margin-top:18px"><button class="btn primary" style="flex:1" id="againBtn">다시 하기</button><button class="btn ghost" id="homeBtn">처음으로</button></div>
     ${wrong.length ? `<div class="label">틀린 문제 복습</div><div class="review">${wrong.map(h => `<div><span class="badge ${TIER[h.q.tier].cls}">${TIER[h.q.tier].name}</span> <b>${h.q.raw ? h.q.prompt.replace(/<div[\s\S]*$/, '') : esc(h.q.prompt)}</b><br>
-       <span class="down">내 답: ${esc(h.q.opts[h.chosen].label)}</span> · <span class="up">정답: ${esc(h.q.answer)}</span><br><span class="mut">${esc(h.q.explain || '')}</span></div>`).join('')}</div>` : ''}`;
+       <span class="down">내 답: ${esc(h.q.opts[h.chosen].label)}</span> · <span class="up">정답: ${esc(h.q.answer)}</span><br><div class="exp mut">${esc(h.q.explain || '')}</div></div>`).join('')}</div>` : ''}`;
   show('result');
   $('#againBtn').onclick = startGame;
   $('#homeBtn').onclick = () => { S.game = null; renderHome(); show('home'); };
