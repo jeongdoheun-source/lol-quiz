@@ -77,7 +77,7 @@ function numericOptions(v, pool, { step, decimals = 3 } = {}) {
 }
 /** 5개 구간 보기: A가 크게 우세 / 조금 우세 / 같다 / B가 조금 / B가 크게 */
 function bucket5(aName, bName, d, th, verb) {
-  const L = [`${aName} 쪽이 ${th} 이상 ${verb}`, `${aName} 쪽이 ${th} 미만으로 ${verb}`, '같다', `${bName} 쪽이 ${th} 미만으로 ${verb}`, `${bName} 쪽이 ${th} 이상 ${verb}`];
+  const L = [`${J(aName, '이')} ${th} 이상 더 ${verb}`, `${J(aName, '이')} ${th} 미만 차이로 더 ${verb}`, '둘이 같다', `${J(bName, '이')} ${th} 미만 차이로 더 ${verb}`, `${J(bName, '이')} ${th} 이상 더 ${verb}`];
   const ad = Math.abs(d) < 1e-9 ? 0 : d;
   const ans = ad === 0 ? L[2] : ad >= th ? L[0] : ad > 0 ? L[1] : -ad >= th ? L[4] : L[3];
   return { L, ans };
@@ -137,24 +137,24 @@ gen('champ', 1, 1, async () => {
   const types = Object.keys(freq).sort((a, b) => freq[b] - freq[a]); if (types.length < OPTS) return null;
   const rare = S.champs.filter(c => c.partype && c.partype !== types[0]);
   const c = Math.random() < 0.6 && rare.length ? pick(rare) : pick(S.champs.filter(x => x.partype));
-  return Q('champ', `${c.name}이(가) 스킬에 쓰는 자원은?`, c.partype, types.filter(t => t !== c.partype), {
+  return Q('champ', `${J(c.name, '이')} 스킬을 쓸 때 소모하는 자원은 무엇일까요?`, c.partype, types.filter(t => t !== c.partype), {
     sig: () => sigC(c.key, 'partype'), champ: c.key, srcs: ['DD'],
     explain: ex(`${c.name}의 자원은 「${c.partype}」입니다.`,
-      `💡 이 데이터 기준으로 같은 자원을 쓰는 챔피언은 ${freq[c.partype]}명이에요. 마나가 아닌 챔피언은 마나 관련 아이템·룬이 쓸모없으니 빌드에서 빼야 합니다.`) });
+      /마나/.test(c.partype) ? `💡 ${J(c.partype, '을')} 쓰는 챔피언은 ${freq[c.partype]}명이에요. 라인전에서 마나가 바닥나면 스킬을 못 쓰니, 견제 횟수를 마나에 맞춰 조절해야 합니다.` : `💡 ${J(c.partype, '을')} 쓰는 챔피언은 ${freq[c.partype]}명이에요. ${J(c.name, '은')} 마나를 쓰지 않으므로 마나를 주는 아이템이나 룬은 효과가 없습니다.`) });
 });
 gen('champ', 1, 1, async () => {
   const tag = pick(Object.keys(TAGS));
   const has = S.champs.filter(c => c.tags && c.tags[0] === tag), not = S.champs.filter(c => c.tags && c.tags.length && !c.tags.includes(tag));
   if (!has.length || not.length < 4) return null;
   const c = pick(has), wr = shuffle(not).slice(0, 4);
-  return Q('champ', `다음 중 주 역할군이 '${TAGS[tag]}'인 챔피언은?`, c.name, wr.map(x => x.name), {
+  return Q('champ', `다음 중 주 역할군이 ${TAGS[tag]}인 챔피언은 누구일까요?`, c.name, wr.map(x => x.name), {
     sig: () => sigC(c.key, 'tags'), srcs: [c.src.tags],
     explain: ex(`각 챔피언의 역할군(첫 번째가 주 역할):`, ...[c, ...wr].map(x => `• ${x.name}: ${x.tags.map(t => TAGS[t] || t).join(' / ')}`)) });
 });
 gen('champ', 1, 1, async () => {
   const ds = await detailedMany(5, d => spellOf(d, 'R')); if (ds.length < 5) return null;
   const d = ds[0], R = spellOf(d, 'R');
-  return Q('champ', `${d.champ.name}의 궁극기(R) 이름은?`, R.name, ds.slice(1).map(x => spellOf(x, 'R').name), {
+  return Q('champ', `${d.champ.name}의 궁극기(R) 이름은 무엇일까요?`, R.name, ds.slice(1).map(x => spellOf(x, 'R').name), {
     sig: () => sigS(d.key, 'R', 'name'), needs: { d: [d.key] }, champ: d.key, srcs: [R.src.name],
     explain: ex(`${d.champ.name}의 R은 「${R.name}」입니다.`, R.cooldown ? `레벨별 재사용 대기시간: ${fmtArr(R.cooldown)}초` : '', R.desc ? `효과: ${trunc(R.desc, 160)}` : '') });
 }, { d: true });
@@ -164,11 +164,11 @@ function pairBucket(k, label, verb, ask, th, why) {
     const a = pick(pool), same = pool.filter(x => x.key !== a.key && x.tags[0] === a.tags[0]);
     const b = pick(same.length ? same : pool.filter(x => x.key !== a.key));
     const va = a.stats[k], vb = b.stats[k], d = va - vb, { L, ans } = bucket5(a.name, b.name, d, th, verb);
-    return Q('champ', `${a.name} vs ${b.name} — ${label}: 어느 쪽이 얼마나 ${ask}?`, ans, L.filter(x => x !== ans), {
+    return Q('champ', `${J(a.name, '과')} ${b.name} 중 ${J(label, '은')} 어느 쪽이 얼마나 더 ${ask}?`, ans, L.filter(x => x !== ans), {
       order: L, long: true, srcs: ['DD'], sig: () => sigC(a.key, 'stats.' + k) + sigC(b.key, 'stats.' + k),
       explain: ex(`① ${a.name} ${label} ${fmt(va)}, ${b.name} ${label} ${fmt(vb)}`,
         `② 차이 = ${fmt(va)} − ${fmt(vb)} = ${n2(d)}`,
-        `③ ${d === 0 ? '두 값이 같습니다.' : `${d > 0 ? a.name : b.name} 쪽이 ${n2(Math.abs(d))} ${verb.replace(/다$/, '고')}, 기준 ${th}${Math.abs(d) >= th ? ' 이상' : ' 미만'}이라 「${ans}」입니다.`}`, why) });
+        `③ ${d === 0 ? '두 값이 같으므로 정답은 「둘이 같다」입니다.' : `${J(d > 0 ? a.name : b.name, '이')} ${n2(Math.abs(d))}만큼 더 ${verb.replace(/다$/, '고')}, 이 차이는 기준인 ${th}${Math.abs(d) >= th ? ' 이상' : '보다 작으므'}${Math.abs(d) >= th ? '이므로' : '로'} 정답은 「${ans}」입니다.`}`, why) });
   };
 }
 gen('champ', 2, 2, pairBucket('attackrange', '기본 공격 사거리', '길다', '긴가요', 50, '💡 사거리가 긴 쪽은 그 차이만큼 상대 평타가 닿지 않는 거리에서 견제할 수 있어요. 짧은 쪽은 스킬·돌진으로 거리를 좁혀야 이깁니다.'));
@@ -181,18 +181,18 @@ gen('champ', 2, 2, async () => {
   for (const c of shuffle(pool)) { if (chosen.length >= OPTS) break; if (!seen.has(c.stats[k])) { seen.add(c.stats[k]); chosen.push(c); } }
   if (chosen.length < OPTS) return null;
   const hi = Math.random() < 0.6, sorted = [...chosen].sort((a, b) => hi ? b.stats[k] - a.stats[k] : a.stats[k] - b.stats[k]);
-  return Q('champ', `다음 중 ${STATS[k]} 수치가 가장 ${hi ? '높은' : '낮은'} 챔피언은?`, sorted[0].name, sorted.slice(1).map(x => x.name), {
+  return Q('champ', `다음 중 ${J(STATS[k], '이')} 가장 ${hi ? '높은' : '낮은'} 챔피언은 누구일까요?`, sorted[0].name, sorted.slice(1).map(x => x.name), {
     srcs: ['DD'], sig: () => chosen.map(x => sigC(x.key, 'stats.' + k)).join(),
-    explain: ex(`${STATS[k]}을(를) ${hi ? '높은' : '낮은'} 순서로 놓으면:`, ...sorted.map((x, i) => `${i + 1}. ${x.name} ${fmt(x.stats[k])}`), `그래서 정답은 ${sorted[0].name}입니다.`) });
+    explain: ex(`${STATS[k]}${josa(STATS[k], '을')} ${hi ? '높은' : '낮은'} 순서로 놓으면:`, ...sorted.map((x, i) => `${i + 1}. ${x.name} ${fmt(x.stats[k])}`), `그래서 정답은 ${sorted[0].name}입니다.`) });
 });
 gen('champ', 3, 2, async () => {
   const k = pick(['hp', 'armor', 'spellblock', 'movespeed', 'attackrange', 'attackdamage', 'attackspeed', 'hpperlevel', 'armorperlevel']);
   const pool = withStats().filter(c => typeof c.stats[k] === 'number' && c.stats[k] > 0);
   const c = pick(pool), v = c.stats[k];
   const rank = [...new Set(pool.map(x => x.stats[k]))].sort((a, b) => b - a).indexOf(v) + 1;
-  return Q('champ', `${c.name}의 ${STATS[k]}은(는)?`, fmt(v), numericOptions(v, pool.map(x => x.stats[k])).map(fmt), {
+  return Q('champ', `${c.name}의 ${J(STATS[k], '은')} 얼마일까요?`, fmt(v), numericOptions(v, pool.map(x => x.stats[k])).map(fmt), {
     sig: () => sigC(c.key, 'stats.' + k), champ: c.key, srcs: ['DD'],
-    explain: ex(`${c.name}의 ${STATS[k]}은(는) ${fmt(v)}입니다.`, `전체 ${pool.length}명 중 값이 높은 순서로 ${rank}번째예요 (최고 ${fmt(Math.max(...pool.map(x => x.stats[k])))}, 최저 ${fmt(Math.min(...pool.map(x => x.stats[k])))}).`) });
+    explain: ex(`${c.name}의 ${STATS[k]}${josa(STATS[k], '은')} ${fmt(v)}입니다.`, `전체 ${pool.length}명 중 값이 높은 순서로 ${rank}번째예요 (최고 ${fmt(Math.max(...pool.map(x => x.stats[k])))}, 최저 ${fmt(Math.min(...pool.map(x => x.stats[k])))}).`) });
 });
 gen('champ', 3, 1, async () => {
   const pool = withStats().filter(x => x.stats.attackrange >= 400);
@@ -200,10 +200,10 @@ gen('champ', 3, 1, async () => {
   const [L, Sh] = a.stats.attackrange > b.stats.attackrange ? [a, b] : [b, a];
   const v = L.stats.attackrange - Sh.stats.attackrange;
   const diffs = []; for (let i = 0; i < 60; i++) { const dv = Math.abs(pick(pool).stats.attackrange - pick(pool).stats.attackrange); if (dv > 0) diffs.push(dv); }
-  return Q('champ', `라인전 사거리 싸움: ${a.name}와(과) ${b.name}의 기본 공격 사거리 차이는?`, fmt(v), numericOptions(v, diffs, { step: 25 }).map(fmt), {
+  return Q('champ', `라인전에서 ${J(a.name, '과')} ${b.name}의 기본 공격 사거리는 얼마나 차이 날까요?`, fmt(v), numericOptions(v, diffs, { step: 25 }).map(fmt), {
     srcs: ['DD'], sig: () => sigC(a.key, 'stats.attackrange') + sigC(b.key, 'stats.attackrange'),
     explain: ex(`① ${L.name} ${fmt(L.stats.attackrange)} − ${Sh.name} ${fmt(Sh.stats.attackrange)} = ${fmt(v)}`,
-      `💡 ${L.name}은(는) ${Sh.name}의 평타 사거리 바깥 ${fmt(v)} 거리에서 일방적으로 때릴 수 있어요. ${Sh.name}은(는) 그 거리만큼 앞으로 걸어 들어가야 하므로 미니언 막타 타이밍에 견제를 받기 쉽습니다.`) });
+      `💡 ${J(L.name, '은')} ${Sh.name}보다 ${fmt(v)} 더 먼 곳에서 기본 공격을 할 수 있어서, ${Sh.name}의 평타가 닿지 않는 거리에서 일방적으로 견제할 수 있어요. 반대로 ${J(Sh.name, '은')} 그만큼 앞으로 들어가야 해서 미니언 막타를 칠 때 견제를 받기 쉽습니다.`) });
 });
 const LV = { hp: '체력', armor: '방어력', spellblock: '마법 저항력', attackdamage: '공격력', mp: '마나' };
 gen('champ', 3, 2, async () => {
@@ -211,7 +211,7 @@ gen('champ', 3, 2, async () => {
   const a = pick(pool), b = pick(pool.filter(x => x.key !== a.key));
   const per = a.stats.attackdamage * dmgTaken(b.stats.armor), hits = Math.ceil(b.stats.hp / per);
   const wr = numericOptions(hits, [Math.ceil(b.stats.hp / a.stats.attackdamage), hits + 1, hits - 1, hits + 2, hits - 2], { step: 1 });
-  return Q('champ', `레벨 1, 아이템·룬·치명타 없이 ${a.name}이(가) 기본 공격만으로 ${b.name}을(를) 처치하려면 몇 대를 때려야 할까요?`, hits + '대', wr.map(x => x + '대'), {
+  return Q('champ', `레벨 1에서 아이템·룬·치명타 없이 ${J(a.name, '이')} 기본 공격만으로 ${J(b.name, '을')} 처치하려면 몇 대를 때려야 할까요?`, hits + '대', wr.map(x => x + '대'), {
     srcs: ['DD'], sig: () => sigC(a.key, 'stats') + sigC(b.key, 'stats'),
     explain: ex(`① ${b.name}의 방어력 ${fmt(b.stats.armor)} → 받는 물리 피해 배율 = 100 ÷ (100 + ${fmt(b.stats.armor)}) = ${n4(dmgTaken(b.stats.armor))}`,
       `② 평타 1대 피해 = ${a.name} 공격력 ${fmt(a.stats.attackdamage)} × ${n4(dmgTaken(b.stats.armor))} = ${n2(per)}`,
@@ -222,7 +222,7 @@ gen('champ', 4, 2, async () => {
   const k = pick(['hp', 'armor', 'spellblock', 'attackdamage']), n = pick([6, 9, 11, 13, 16, 18]);
   const pool = withStats().filter(x => typeof x.stats[k] === 'number' && typeof x.stats[k + 'perlevel'] === 'number');
   const c = pick(pool), rd = k === 'hp' ? Math.round : r1, v = rd(lvlStat(c, k, n));
-  return Q('champ', `레벨 ${n} ${c.name}의 ${LV[k]}은(는)? (아이템·룬 제외)`, fmt(v), numericOptions(v, pool.map(x => rd(lvlStat(x, k, n))), { decimals: 1 }).map(fmt), {
+  return Q('champ', `아이템과 룬이 없을 때 레벨 ${n} ${c.name}의 ${J(LV[k], '은')} 얼마일까요?`, fmt(v), numericOptions(v, pool.map(x => rd(lvlStat(x, k, n))), { decimals: 1 }).map(fmt), {
     srcs: ['DD'], sig: () => sigC(c.key, 'stats.' + k) + sigC(c.key, 'stats.' + k + 'perlevel'), champ: c.key,
     explain: ex(...lvlLines(c, k, n, LV[k]), `→ ${k === 'hp' ? '반올림' : '소수 첫째 자리'} ${fmt(v)}`, Math.abs(growthMul(n) - (n - 1)) > 0.05 ? `⚠️ 흔한 실수: 레벨당 성장치 × (레벨−1) = ${n2(c.stats[k + 'perlevel'] * (n - 1))}로 단순 계산하면 ${n2(c.stats[k] + c.stats[k + 'perlevel'] * (n - 1))}이 나와 틀립니다 (18레벨에서만 두 방식이 같아요).` : '⚠️ 18레벨은 성장 배수가 정확히 17이라 단순 계산과 결과가 같지만, 그 사이 레벨에서는 단순 계산이 틀립니다.', growthWhy()) });
 });
@@ -237,29 +237,29 @@ gen('champ', 5, 2, async () => {
   }
   if (!P) return null;
   const [a, b, an, bn] = P, { L, ans } = bucket5(a.name, b.name, an - bn, th, '높다');
-  return Q('champ', `레벨 1 ${LV[k]}은(는) ${a.name}(${fmt(a.stats[k])})이(가) ${b.name}(${fmt(b.stats[k])})보다 높습니다. 레벨 ${n}에서는?`, ans, L.filter(x => x !== ans), {
+  return Q('champ', `레벨 1에서는 ${a.name}의 ${J(LV[k], '이')} ${fmt(a.stats[k])}${josa(fmt(a.stats[k]), '으로')} ${b.name}(${fmt(b.stats[k])})보다 높습니다. 레벨 ${n}에서는 어떻게 될까요?`, ans, L.filter(x => x !== ans), {
     order: L, long: true, srcs: ['DD'], sig: () => sigC(a.key, 'stats') + sigC(b.key, 'stats'),
     explain: ex(...growthLines(n),
       `② ${a.name}: ${fmt(a.stats[k])} + ${fmt(a.stats[k + 'perlevel'])} × ${n2(growthMul(n))} = ${n2(an)}`,
       `③ ${b.name}: ${fmt(b.stats[k])} + ${fmt(b.stats[k + 'perlevel'])} × ${n2(growthMul(n))} = ${n2(bn)}`,
       `④ 차이 = ${n2(an)} − ${n2(bn)} = ${n2(an - bn)} → 「${ans}」`,
-      an < bn ? `💡 레벨 1에서는 ${a.name}이(가) 높지만 레벨당 성장치가 ${b.name}(${fmt(b.stats[k + 'perlevel'])})보다 작아서(${fmt(a.stats[k + 'perlevel'])}) 레벨 ${n}에서는 역전됩니다. 초반 강세 챔피언은 이 시점 전에 이득을 봐야 해요.`
-        : `💡 ${a.name}은(는) 레벨 ${n}까지도 우위를 유지합니다. 성장치 차이가 레벨 1 격차를 뒤집기에는 부족해요.`) });
+      an < bn ? `💡 ${J(a.name, '은')} 레벨 1에서 앞서지만, 레벨당 성장치가 ${fmt(a.stats[k + 'perlevel'])}${josa(fmt(a.stats[k + 'perlevel']), '으로')} ${b.name}(${fmt(b.stats[k + 'perlevel'])})보다 작아서 레벨 ${n}에서는 역전당합니다. 초반에 강한 쪽은 이 레벨 전에 이득을 봐야 해요.`
+        : `💡 ${a.name}${josa(a.name, '은')} 레벨 ${n}까지도 우위를 유지합니다. 성장치 차이가 레벨 1 격차를 뒤집기에는 부족해요.`) });
 });
 gen('champ', 4, 1, async () => {
   const n = pick([1, 6, 11, 18]), c = pick(withStats().filter(x => x.stats.armor && x.stats.armorperlevel != null));
   const ar = lvlStat(c, 'armor', n), red = Math.round((1 - dmgTaken(ar)) * 1000) / 10;
   const wr = [r1(ar), r1(ar / 2), Math.round((1 - dmgTaken(ar * 1.5)) * 1000) / 10, Math.round((1 - dmgTaken(ar * 0.6)) * 1000) / 10, Math.round((1 - dmgTaken(ar * 2)) * 1000) / 10].filter(x => x > 0 && x < 100 && x !== red);
-  return Q('champ', `레벨 ${n} ${c.name}(아이템 없음)은 물리 피해를 몇 % 덜 받을까요?`, fmt(red) + '%', wr.map(x => fmt(x) + '%'), {
+  return Q('champ', `아이템이 없는 레벨 ${n} ${J(c.name, '은')} 방어력 덕분에 물리 피해를 몇 % 덜 받을까요?`, fmt(red) + '%', wr.map(x => fmt(x) + '%'), {
     srcs: ['DD'], sig: () => sigC(c.key, 'stats.armor') + sigC(c.key, 'stats.armorperlevel'), champ: c.key,
     explain: ex(n > 1 ? lvlLines(c, 'armor', n, '방어력') : `① 레벨 1 방어력 = ${fmt(c.stats.armor)}`,
       `④ 받는 피해 = 100 ÷ (100 + ${n2(ar)}) = ${n4(dmgTaken(ar))} → 피해 감소 = 1 − ${n4(dmgTaken(ar))} = ${fmt(red)}%`,
-      `⚠️ 방어력 ${n2(ar)}을(를) 그대로 %로 읽는 실수(${n2(ar)}%)가 흔해요. 방어력은 높아질수록 1당 감소 효과가 줄어들지만, 물리 유효 체력은 방어력 1당 항상 1%씩 늘어납니다.`) });
+      `⚠️ 방어력 ${n2(ar)}${josa(n2(ar), '을')} 그대로 %로 읽는 실수(${n2(ar)}%)가 흔해요. 방어력은 높아질수록 1당 감소 효과가 줄어들지만, 물리 유효 체력은 방어력 1당 항상 1%씩 늘어납니다.`) });
 });
 gen('champ', 4, 1, async () => {
   const n = pick([6, 9, 11, 13, 16, 18]); const pool = withStats().filter(x => typeof x.stats.attackspeedperlevel === 'number' && x.stats.attackspeedperlevel > 0);
   const c = pick(pool), v = r1(c.stats.attackspeedperlevel * growthMul(n));
-  return Q('champ', `${c.name}이(가) 레벨 ${n}까지 레벨업만으로 얻는 추가 공격 속도는 몇 %일까요?`, fmt(v) + '%', numericOptions(v, pool.map(x => r1(x.stats.attackspeedperlevel * growthMul(n))), { step: 1, decimals: 1 }).map(x => fmt(x) + '%'), {
+  return Q('champ', `${J(c.name, '이')} 레벨 ${n}까지 레벨업만으로 얻는 추가 공격 속도는 몇 %일까요?`, fmt(v) + '%', numericOptions(v, pool.map(x => r1(x.stats.attackspeedperlevel * growthMul(n))), { step: 1, decimals: 1 }).map(x => fmt(x) + '%'), {
     srcs: ['DD'], sig: () => sigC(c.key, 'stats.attackspeedperlevel'), champ: c.key,
     explain: ex(...growthLines(n), `② 추가 공격 속도 = 레벨당 ${fmt(c.stats.attackspeedperlevel)}% × ${n2(growthMul(n))} = ${fmt(v)}%`,
       Math.abs(growthMul(n) - (n - 1)) > 0.05 ? `⚠️ 단순히 ${fmt(c.stats.attackspeedperlevel)}% × ${n - 1} = ${n2(c.stats.attackspeedperlevel * (n - 1))}%로 계산하면 틀립니다.` : '',
@@ -273,10 +273,12 @@ gen('champ', 5, 2, async () => {
   for (const c of shuffle(pool.filter(x => typeof x.stats[rk] === 'number'))) { const v = ehp(c); if (seen.has(v)) continue; seen.add(v); cs.push([c, v]); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null; cs.sort((a, b) => b[1] - a[1]);
   const lines = cs.map(([c, v]) => `• ${c.name}: 체력 ${n2(lvlStat(c, 'hp', n))} × (1 + ${n2(lvlStat(c, rk, n))}/100) = ${v}`);
-  return Q('champ', `레벨 ${n}, 아이템·룬 없이 ${phys ? '물리' : '마법'} 피해 기준 유효 체력이 가장 높은 챔피언은?`, cs[0][0].name, cs.slice(1).map(x => x[0].name), {
+  return Q('champ', `아이템과 룬이 없는 레벨 ${n} 기준으로 ${phys ? '물리' : '마법'} 피해에 가장 단단한(유효 체력이 가장 높은) 챔피언은 누구일까요?`, cs[0][0].name, cs.slice(1).map(x => x[0].name), {
     srcs: ['DD'], sig: () => cs.map(([c]) => sigC(c.key, 'stats')).join(),
     explain: ex(`유효 체력 = 체력 × (1 + ${rl}/100). ${n > 1 ? `레벨 ${n} 스탯은 성장 배수 ${n2(growthMul(n))}로 계산했어요.` : ''}`, ...lines,
-      `💡 체력만 보면 1위는 ${[...cs].sort((a, b) => lvlStat(b[0], 'hp', n) - lvlStat(a[0], 'hp', n))[0][0].name}이지만, ${rl}까지 반영하면 실제로 가장 단단한 챔피언은 ${cs[0][0].name}입니다.`) });
+      (() => { const hpTop = [...cs].sort((a, b) => lvlStat(b[0], 'hp', n) - lvlStat(a[0], 'hp', n))[0][0], top = cs[0][0];
+        return hpTop === top ? `💡 ${J(top.name, '은')} 체력도 가장 높고 ${rl}까지 반영해도 가장 단단합니다.`
+          : `💡 체력만 보면 ${J(hpTop.name, '이')} 가장 높지만, ${J(rl, '을')} 함께 반영하면 ${J(top.name, '이')} 더 단단합니다. 체력 수치만 보고 판단하면 안 되는 이유예요.`; })()) });
 });
 
 /* =====================================================================
@@ -287,21 +289,21 @@ gen('skill', 1, 2, async () => {
   const all = [...d.spells, d.passive].filter(Boolean), s = pick(all);
   if (all.filter(x => x.name === s.name).length > 1) return null;
   const order = ['패시브', 'Q', 'W', 'E', 'R'];
-  return Q('skill', `「${s.name}」은(는) ${d.champ.name}의 어떤 스킬일까요?`, keyLabel(s.key), order.filter(x => x !== keyLabel(s.key)), {
+  return Q('skill', `「${s.name}」${josa(s.name, '은')} ${d.champ.name}의 어느 키 스킬일까요?`, keyLabel(s.key), order.filter(x => x !== keyLabel(s.key)), {
     order, sig: () => sigS(d.key, s.key, 'name'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.name],
     explain: ex(`${d.champ.name}의 스킬 구성:`, ...all.map(x => `• ${keyLabel(x.key)}: ${x.name}`), s.desc ? `「${s.name}」: ${trunc(s.desc, 140)}` : '') });
 }, { d: true });
 gen('skill', 2, 1, async () => {
   const d = await detailed(x => x.spells.some(s => s.icons.length)); if (!d) return null;
   const s = pick([...d.spells, d.passive].filter(x => x && x.icons.length));
-  return Q('skill', '이 스킬 아이콘의 주인은? (상대가 어떤 스킬을 썼는지 아이콘으로 알아보기)', d.champ.name, champDistractors(d.champ), {
+  return Q('skill', '이 스킬 아이콘은 어느 챔피언의 스킬일까요?', d.champ.name, champDistractors(d.champ), {
     img: s.icons, imgClass: 'icon', sig: () => sigS(d.key, s.key, 'name'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.name],
     explain: ex(`${d.champ.name}의 ${keyLabel(s.key)} 「${s.name}」 아이콘입니다.`, s.cooldown ? `재사용 대기시간 ${fmtArr(s.cooldown)}초` : '') });
 }, { d: true });
 gen('skill', 2, 2, async () => {
   const ds = await detailedMany(5, d => { const R = spellOf(d, 'R'); return R && R.cooldown && R.cooldown[0] > 0; }); if (!ds.length) return null;
   const d = ds[0], R = spellOf(d, 'R'), v = R.cooldown[0];
-  return Q('skill', `${d.champ.name}의 궁극기 「${R.name}」 1레벨 재사용 대기시간은?`, sec(v), numericOptions(v, ds.map(x => spellOf(x, 'R').cooldown[0])).map(sec), {
+  return Q('skill', `${d.champ.name}의 궁극기 「${R.name}」 1레벨 재사용 대기시간은 몇 초일까요?`, sec(v), numericOptions(v, ds.map(x => spellOf(x, 'R').cooldown[0])).map(sec), {
     sig: () => sigS(d.key, 'R', 'cooldown'), needs: { d: [d.key] }, champ: d.key, srcs: [R.src.cooldown],
     explain: ex(`레벨별 재사용 대기시간: ${R.cooldown.map((x, i) => `${i + 1}레벨 ${x}초`).join(' → ')}`,
       `💡 상대가 6레벨에 궁을 쓰면 ${sec(v)} 동안은 궁이 없습니다. 이 시간에 들어가는 게 안전한 교전 타이밍이에요.`) });
@@ -311,7 +313,7 @@ gen('skill', 3, 2, async () => {
   const d = ds[0], s = pick(d.spells.filter(x => x.key !== 'R' && x.cooldown && x.cooldown[0] > 0));
   const maxR = Math.random() < 0.5, i = maxR ? s.cooldown.length - 1 : 0, v = s.cooldown[i];
   const pool = ds.flatMap(x => x.spells.filter(y => y.key === s.key && y.cooldown).map(y => y.cooldown[Math.min(i, y.cooldown.length - 1)]));
-  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 ${maxR ? '최대 레벨(' + s.cooldown.length + ')' : '1레벨'} 재사용 대기시간은?`, sec(v), numericOptions(v, pool).map(sec), {
+  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 ${maxR ? s.cooldown.length + '레벨(최대)' : '1레벨'} 재사용 대기시간은 몇 초일까요?`, sec(v), numericOptions(v, pool).map(sec), {
     sig: () => sigS(d.key, s.key, 'cooldown'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.cooldown],
     explain: ex(`레벨별: ${s.cooldown.map((x, j) => `${j + 1}레벨 ${x}초`).join(' → ')}`,
       new Set(s.cooldown).size > 1 ? `💡 이 스킬은 레벨을 올리면 쿨타임이 ${n2(s.cooldown[0] - s.cooldown[s.cooldown.length - 1])}초 줄어듭니다. 선마 여부를 정할 때 이 감소폭을 보세요.` : '💡 이 스킬은 레벨을 올려도 쿨타임이 줄지 않습니다.') });
@@ -322,7 +324,7 @@ gen('skill', 3, 1, async () => {
   for (const d of ds) { const v = spellOf(d, 'R').cooldown[0]; if (seen.has(v)) continue; seen.add(v); cs.push([d, v]); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null;
   const lo = Math.random() < 0.5; cs.sort((a, b) => lo ? a[1] - b[1] : b[1] - a[1]);
-  return Q('skill', `다음 중 궁극기 1레벨 쿨타임이 가장 ${lo ? '짧은' : '긴'} 챔피언은?`, cs[0][0].champ.name, cs.slice(1).map(x => x[0].champ.name), {
+  return Q('skill', `다음 중 궁극기 1레벨 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 챔피언은 누구일까요?`, cs[0][0].champ.name, cs.slice(1).map(x => x[0].champ.name), {
     srcs: ['DD'], sig: () => cs.map(([d]) => sigS(d.key, 'R', 'cooldown')).join(), needs: { d: cs.map(([d]) => d.key) },
     explain: ex(...cs.map(([d, v], i) => `${i + 1}. ${d.champ.name} ${sec(v)}`), `💡 궁 쿨타임이 짧은 챔피언은 궁을 써서 라인 교전을 걸고도 다음 오브젝트 전에 궁이 돌아옵니다.`) });
 }, { d: true });
@@ -332,7 +334,7 @@ gen('skill', 3, 1, async () => {
   const flat = all.filter(x => new Set(x.s.cooldown).size === 1), dec = all.filter(x => new Set(x.s.cooldown).size > 1);
   if (!flat.length || dec.length < 4) return null;
   const c = pick(flat), wr = shuffle(dec).slice(0, 4), lab = x => `${x.d.champ.name} ${x.s.key} 「${x.s.name}」`;
-  return Q('skill', '다음 중 스킬 레벨을 올려도 재사용 대기시간이 줄지 않는 스킬은?', lab(c), wr.map(lab), {
+  return Q('skill', '다음 중 스킬 레벨을 올려도 재사용 대기시간이 줄지 않는 스킬은 무엇일까요?', lab(c), wr.map(lab), {
     long: true, srcs: ['DD'], sig: () => [c, ...wr].map(x => sigS(x.d.key, x.s.key, 'cooldown')).join(), needs: { d: [c, ...wr].map(x => x.d.key) },
     explain: ex(...[c, ...wr].map(x => `• ${lab(x)}: ${fmtArr(x.s.cooldown)}초`), `💡 쿨타임이 고정인 스킬은 레벨을 올려도 쿨타임이 줄지 않아서, 보통 다른 스킬을 먼저 올리는 편이 이득입니다.`) });
 }, { d: true });
@@ -340,7 +342,7 @@ gen('skill', 3, 1, async () => {
   const d = await detailed(x => x.spells.some(s => s.manaCost && s.manaCost[0] > 0)); if (!d) return null;
   const s = pick(d.spells.filter(x => x.manaCost && x.manaCost[0] > 0)), v = s.manaCost[0];
   const pool = [...S.details.values()].flatMap(x => x.spells.filter(y => y.manaCost).map(y => y.manaCost[0]));
-  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 1레벨 마나 소모량은?`, fmt(v), numericOptions(v, pool, { step: 5 }).map(fmt), {
+  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 1레벨 마나 소모량은 얼마일까요?`, fmt(v), numericOptions(v, pool, { step: 5 }).map(fmt), {
     sig: () => sigS(d.key, s.key, 'manaCost'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.cost],
     explain: ex(`레벨별 마나: ${s.manaCost.map((x, j) => `${j + 1}레벨 ${x}`).join(' → ')}`, d.champ.stats && d.champ.stats.mp ? `💡 레벨 1 최대 마나 ${fmt(d.champ.stats.mp)} 기준으로 ${Math.floor(d.champ.stats.mp / v)}번 쓸 수 있어요 (${fmt(d.champ.stats.mp)} ÷ ${fmt(v)}, 마나 재생 제외).` : '') });
 }, { d: true });
@@ -349,7 +351,7 @@ gen('skill', 3, 2, async () => {
   const c = d.champ, s = pick(d.spells.filter(x => x.manaCost && x.manaCost[0] > 0)), n = pick([1, 3, 6]);
   const lv = Math.min(s.manaCost.length, n === 1 ? 1 : n === 3 ? 2 : 3), cost = s.manaCost[lv - 1];
   const mp = lvlStat(c, 'mp', n), times = Math.floor(mp / cost);
-  return Q('skill', `레벨 ${n} ${c.name}이(가) 마나가 가득 찬 상태에서 ${s.key} 「${s.name}」(${lv}레벨)만 연속으로 쓴다면 몇 번까지 쓸 수 있을까요? (마나 재생·아이템 제외)`, times + '번',
+  return Q('skill', `레벨 ${n} ${J(c.name, '이')} 마나가 가득 찬 상태에서 ${s.key} 「${s.name}」(${lv}레벨)만 연속으로 쓴다면 몇 번까지 쓸 수 있을까요? (마나 재생·아이템 제외)`, times + '번',
     numericOptions(times, [times + 1, times - 1, times + 2, Math.floor(c.stats.mp / cost)], { step: 1 }).map(x => x + '번'), {
     sig: () => sigS(d.key, s.key, 'manaCost') + sigC(c.key, 'stats.mp') + sigC(c.key, 'stats.mpperlevel'), needs: { d: [d.key] }, champ: c.key, srcs: ['DD'],
     explain: ex(n > 1 ? lvlLines(c, 'mp', n, '최대 마나') : `① 레벨 1 최대 마나 = ${fmt(c.stats.mp)}`,
@@ -363,7 +365,7 @@ gen('skill', 3, 1, async () => {
   const pool = [...S.details.values()].filter(x => x.champ.stats).flatMap(x => x.spells.filter(ok).map(y => y.range[0] - x.champ.stats.attackrange));
   const lab = x => (x > 0 ? '+' : '') + fmt(x);
   const wrs = new Set(); for (const x of numericOptions(Math.abs(v) || 25, pool.map(Math.abs), { step: 25 })) wrs.add(lab(v >= 0 ? x : -x)); wrs.add(lab(-v));
-  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 사거리는 기본 공격 사거리보다 얼마나 길까요? (짧으면 −)`, lab(v), [...wrs].filter(x => x !== lab(v)), {
+  return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 사거리는 기본 공격 사거리보다 얼마나 길까요? (짧으면 −로 표시)`, lab(v), [...wrs].filter(x => x !== lab(v)), {
     sig: () => sigS(d.key, s.key, 'range') + sigC(d.key, 'stats.attackrange'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.range, 'DD'],
     explain: ex(`① ${s.key} 사거리 ${fmt(s.range[0])} − 기본 공격 사거리 ${fmt(ar)} = ${lab(v)}`,
       v > 0 ? `💡 이 스킬은 평타보다 ${fmt(v)} 멀리 닿습니다. 상대 평타 사거리 밖에서 이 스킬로 견제하는 게 기본 운영이에요.` : `💡 이 스킬은 평타보다 ${fmt(-v)} 짧아서, 쓰려면 평타 사거리 안으로 더 들어가야 합니다.`) });
@@ -373,11 +375,11 @@ gen('skill', 4, 2, async () => {
   const [a, b] = ds, Ra = spellOf(a, 'R'), Rb = spellOf(b, 'R'); const lv = pick([1, 2, 3]);
   const ca = Ra.cooldown[Math.min(lv, Ra.cooldown.length) - 1], cb = Rb.cooldown[Math.min(lv, Rb.cooldown.length) - 1];
   if (ca === cb) return null; const v = Math.abs(ca - cb), first = ca < cb ? a : b, later = ca < cb ? b : a;
-  return Q('skill', `한타에서 ${a.champ.name}와(과) ${b.champ.name}이(가) 동시에 궁극기(둘 다 ${lv}레벨)를 썼습니다. 먼저 궁이 돌아오는 쪽은 상대보다 몇 초 먼저 궁을 다시 쓸 수 있을까요? (스킬 가속 없음)`, sec(v),
+  return Q('skill', `한타에서 ${a.champ.name}${josa(a.champ.name, '과')} ${b.champ.name}${josa(b.champ.name, '이')} 동시에 ${lv}레벨 궁극기를 썼습니다. 스킬 가속이 없다면, 궁이 먼저 돌아오는 쪽은 상대보다 몇 초 먼저 궁을 다시 쓸 수 있을까요?`, sec(v),
     numericOptions(v, [ca, cb, Math.round(v / 2), v + 10, v + 20], { step: 5 }).map(sec), {
     srcs: ['DD'], sig: () => sigS(a.key, 'R', 'cooldown') + sigS(b.key, 'R', 'cooldown'), needs: { d: [a.key, b.key] },
     explain: ex(`① ${a.champ.name} R ${lv}레벨 쿨타임 ${sec(ca)}, ${b.champ.name} R ${lv}레벨 쿨타임 ${sec(cb)}`, `② 차이 = |${ca} − ${cb}| = ${sec(v)}`,
-      `💡 ${first.champ.name}은(는) 궁을 쓰고 ${sec(Math.min(ca, cb))} 뒤에 다시 쓸 수 있고, 그때부터 ${sec(v)} 동안은 ${later.champ.name}만 궁이 없습니다. 이 틈이 다음 교전을 걸 타이밍이에요.`) });
+      `💡 ${first.champ.name}${josa(first.champ.name, '은')} 궁을 쓰고 ${sec(Math.min(ca, cb))} 뒤에 다시 쓸 수 있고, 그때부터 ${sec(v)} 동안은 ${later.champ.name}만 궁이 없습니다. 이 틈이 다음 교전을 걸 타이밍이에요.`) });
 }, { d: true });
 gen('skill', 4, 2, async () => {
   const I = await ensure('items'); const ahItems = I.list.filter(m => itemStat(m, '스킬 가속') > 0 && ['legendary', 'epic', 'boots'].includes(m.kind));
@@ -387,7 +389,7 @@ gen('skill', 4, 2, async () => {
   const items = shuffle(ahItems).slice(0, 1 + rand(Math.min(2, ahItems.length))), ah = items.reduce((a, m) => a + itemStat(m, '스킬 가속'), 0);
   const v = r1(hasteCd(base, ah));
   const wr = [ah < 100 ? r1(base * (1 - ah / 100)) : null, r1(hasteCd(base, ah * 2)), r1(hasteCd(base, ah / 2)), r1(base - ah / 10), r1(hasteCd(base, ah) + 1), base].filter(x => x > 0 && x !== v);
-  return Q('skill', `${d.champ.name}이(가) ${items.map(m => m.name).join(' + ')}을(를) 샀습니다. ${s.key} 「${s.name}」(${lv + 1}레벨) 재사용 대기시간은? (다른 가속 없음)`, sec(v), wr.map(sec), {
+  return Q('skill', `${d.champ.name}${josa(d.champ.name, '이')} ${items.map(m => m.name).join(' + ')}${josa(items.map(m => m.name).join(' + '), '을')} 샀습니다. 다른 가속이 없다면 ${s.key} 「${s.name}」(${lv + 1}레벨)의 재사용 대기시간은 몇 초일까요?`, sec(v), wr.map(sec), {
     srcs: [s.src.cooldown, 'DD'], sig: () => sigS(d.key, s.key, 'cooldown') + items.map(m => sigI(m.id, 'stats')).join(), needs: { d: [d.key] }, need: 'items',
     explain: ex(`① 스킬 가속 합계 = ${items.map(m => `${m.name} ${itemStat(m, '스킬 가속')}`).join(' + ')} = ${ah}`,
       `② 쿨타임 = 기본 ${fmt(base)}초 × 100 ÷ (100 + ${ah}) = ${fmt(base * 100)} ÷ ${100 + ah} = ${n2(hasteCd(base, ah))} → ${sec(v)}`,
@@ -400,7 +402,7 @@ gen('skill', 5, 2, async () => {
   const R = spellOf(d, 'R'), base = R.cooldown[R.cooldown.length - 1];
   const items = shuffle(ahItems).slice(0, Math.min(3, ahItems.length)), ah = items.reduce((a, m) => a + itemStat(m, '스킬 가속'), 0);
   const cd = hasteCd(base, ah), times = Math.floor(600 / cd), noAh = Math.floor(600 / base);
-  return Q('skill', `${d.champ.name}(궁 ${R.cooldown.length}레벨)이 ${items.map(m => m.name).join(' + ')}을(를) 갖고 있습니다. 10분 동안 쿨타임이 돌 때마다 궁을 쓰면, 첫 사용 뒤 최대 몇 번 더 쓸 수 있을까요? (시전 시간 무시)`, times + '번',
+  return Q('skill', `궁극기 ${R.cooldown.length}레벨인 ${J(d.champ.name, '이')} ${items.map(m => m.name).join(' + ')}${josa(items.map(m => m.name).join(' + '), '을')} 갖고 있습니다. 10분 동안 궁이 돌아올 때마다 바로 쓴다면, 첫 사용 뒤 최대 몇 번 더 쓸 수 있을까요? (시전 시간 제외)`, times + '번',
     numericOptions(times, [noAh, times + 1, times - 1, times + 2, ah < 100 ? Math.floor(600 / (base * (1 - ah / 100))) : times + 3], { step: 1 }).map(x => x + '번'), {
     srcs: [R.src.cooldown, 'DD'], sig: () => sigS(d.key, 'R', 'cooldown') + items.map(m => sigI(m.id, 'stats')).join(), needs: { d: [d.key] }, need: 'items',
     explain: ex(`① 스킬 가속 = ${items.map(m => `${m.name} ${itemStat(m, '스킬 가속')}`).join(' + ')} = ${ah}`,
@@ -416,21 +418,21 @@ const itemOpt = { need: 'items' };
 const statLabelPool = I => { const f = {}; I.list.forEach(m => m.stats.forEach(s => f[s.label] = (f[s.label] || 0) + 1)); return Object.keys(f).filter(k => f[k] >= 2); };
 gen('item', 1, 2, async () => {
   const I = await ensure('items'); const pool = I.list.filter(m => ['basic', 'boots', 'consumable'].includes(m.kind)); const m = pick(pool);
-  return Q('item', `${m.name}의 가격은?`, gold(m.total), numericOptions(m.total, pool.map(x => x.total), { step: 25 }).map(gold), {
+  return Q('item', `${m.name}의 가격은 얼마일까요?`, gold(m.total), numericOptions(m.total, pool.map(x => x.total), { step: 25 }).map(gold), {
     img: m.icons, imgClass: 'icon sm', srcs: [m.src.total], sig: () => sigI(m.id, 'total'),
     explain: ex(`${m.name}: ${gold(m.total)}`, m.stats.length ? `능력치: ${statsText(m)}` : '', m.plain ? `설명: ${m.plain}` : '', m.intoSR.length ? `상위 아이템: ${m.intoSR.map(i => I.byId.get(i).name).join(', ')}` : '') });
 }, itemOpt);
 gen('item', 1, 2, async () => {
   const I = await ensure('items'); const m = pick(I.list.filter(x => x.stats.length && ['legendary', 'epic', 'boots', 'basic'].includes(x.kind)));
   const has = new Set(m.stats.map(s => s.label)), s = pick(m.stats);
-  return Q('item', `다음 중 ${m.name}이(가) 주는 능력치는?`, s.label, shuffle(statLabelPool(I).filter(l => !has.has(l))), {
+  return Q('item', `다음 중 ${J(m.name, '이')} 주는 능력치는 무엇일까요?`, s.label, shuffle(statLabelPool(I).filter(l => !has.has(l))), {
     img: m.icons, imgClass: 'icon sm', srcs: [m.src.desc], sig: () => sigI(m.id, 'stats'),
     explain: ex(`${m.name}의 능력치: ${statsText(m)}`, m.passives.length ? `고유 효과: ${m.passives.join(', ')}` : '') });
 }, itemOpt);
 gen('item', 2, 2, async () => {
   const I = await ensure('items'); const pool = I.list.filter(m => m.kind === 'legendary'); const m = pick(pool);
   const parts = m.from.map(i => I.byId.get(i)).filter(Boolean);
-  return Q('item', `${m.name}의 총 가격은?`, gold(m.total), numericOptions(m.total, pool.map(x => x.total), { step: 50 }).map(gold), {
+  return Q('item', `${m.name}의 총 가격은 얼마일까요?`, gold(m.total), numericOptions(m.total, pool.map(x => x.total), { step: 50 }).map(gold), {
     img: m.icons, imgClass: 'icon sm', srcs: [m.src.total], sig: () => sigI(m.id, 'total'),
     explain: ex(`총 가격 = 하위 아이템 + 조합 비용`, `= ${parts.map(x => `${x.name} ${x.total}`).join(' + ')} + 조합 ${m.base} = ${m.total}골드`) });
 }, itemOpt);
@@ -438,7 +440,7 @@ gen('item', 2, 2, async () => {
   const I = await ensure('items'); const m = pick(I.list.filter(x => ['legendary', 'epic', 'boots'].includes(x.kind) && x.fromSR.length));
   const c = I.byId.get(pick(m.fromSR));
   const wr = shuffle(I.list.filter(x => ['basic', 'epic'].includes(x.kind) && !m.fromSR.includes(x.id) && x.id !== m.id)).slice(0, 4).map(x => x.name);
-  return Q('item', `다음 중 ${m.name}의 재료(하위 아이템)는?`, c.name, wr, {
+  return Q('item', `다음 중 ${m.name}의 재료(하위 아이템)는 무엇일까요?`, c.name, wr, {
     img: m.icons, imgClass: 'icon sm', srcs: [m.src.from], sig: () => sigI(m.id, 'from'),
     explain: ex(`${m.name} = ${m.from.map(i => (I.byId.get(i) || {}).name).filter(Boolean).join(' + ')} + 조합 비용 ${gold(m.base)}`, `💡 재료 아이템을 먼저 사 두면 전투력을 조금씩 올리면서 완성 아이템까지 갈 수 있어요.`) });
 }, itemOpt);
@@ -447,7 +449,7 @@ gen('item', 2, 2, async () => {
   const b = pick(I.list.filter(x => ['basic', 'epic'].includes(x.kind) && x.intoSR.some(i => leg.some(l => l.id === i))));
   const ok = leg.filter(l => b.intoSR.includes(l.id)), c = pick(ok);
   const wr = shuffle(leg.filter(l => !b.intoSR.includes(l.id) && !l.fromSR.includes(b.id))).slice(0, 4).map(x => x.name);
-  return Q('item', `${b.name}(으)로 만들 수 있는 아이템은?`, c.name, wr, {
+  return Q('item', `${b.name}${josa(b.name, '으로')} 만들 수 있는 아이템은 무엇일까요?`, c.name, wr, {
     img: b.icons, imgClass: 'icon sm', srcs: ['DD'], sig: () => sigI(b.id, 'into') + sigI(c.id, 'from'),
     explain: ex(`${b.name}(${gold(b.total)})의 상위 아이템: ${ok.map(x => x.name).join(', ')}`, `${c.name} = ${c.from.map(i => (I.byId.get(i) || {}).name).filter(Boolean).join(' + ')} + 조합 ${gold(c.base)}`) });
 }, itemOpt);
@@ -457,19 +459,19 @@ gen('item', 2, 1, async () => {
   const uniq = [...map.entries()].filter(([, v]) => v.length === 1 && ['legendary', 'epic', 'boots'].includes(v[0].kind));
   const [p, [m]] = pick(uniq);
   const wr = shuffle(I.list.filter(x => ['legendary', 'epic'].includes(x.kind) && x.id !== m.id)).slice(0, 4).map(x => x.name);
-  return Q('item', `「${p}」 효과를 가진 아이템은?`, m.name, wr, {
+  return Q('item', `「${p}」 효과를 가진 아이템은 무엇일까요?`, m.name, wr, {
     srcs: [m.src.desc], sig: () => sigI(m.id, 'passives') + sigI(m.id, 'actives'), explain: ex(`${m.name} (${gold(m.total)}) — ${statsText(m)}`, trunc(strip(m.desc), 200)) });
 }, itemOpt);
 gen('item', 2, 1, async () => {
   const I = await ensure('items'); const pool = I.list.filter(m => m.sell > 0 && ['legendary', 'boots', 'basic', 'epic'].includes(m.kind)); const m = pick(pool);
-  return Q('item', `${m.name}을(를) 상점에 되팔면 받는 골드는?`, gold(m.sell), numericOptions(m.sell, pool.map(x => x.sell), { step: 10 }).map(gold), {
+  return Q('item', `${J(m.name, '을')} 상점에 되팔면 몇 골드를 받을까요?`, gold(m.sell), numericOptions(m.sell, pool.map(x => x.sell), { step: 10 }).map(gold), {
     img: m.icons, imgClass: 'icon sm', srcs: ['DD'], sig: () => sigI(m.id, 'sell'),
     explain: ex(`① 가격 ${gold(m.total)}, 판매가 ${gold(m.sell)}`, `② ${m.sell} ÷ ${m.total} = ${pct(m.sell / m.total)}`, `💡 되팔면 ${gold(m.total - m.sell)}를 손해 봅니다. 시작 아이템을 팔고 다른 아이템으로 바꿀 때 이 손해를 감안하세요.`) });
 }, itemOpt);
 gen('item', 3, 2, async () => {
   const I = await ensure('items'); const pool = I.list.filter(m => ['legendary', 'epic'].includes(m.kind) && m.base > 0); const m = pick(pool);
   const parts = m.from.map(i => I.byId.get(i)).filter(Boolean), sum = parts.reduce((a, x) => a + x.total, 0);
-  return Q('item', `${m.name}의 조합 비용(재료를 다 가졌을 때 추가로 내는 골드)은?`, gold(m.base), numericOptions(m.base, pool.map(x => x.base), { step: 25 }).map(gold), {
+  return Q('item', `${m.name}의 조합 비용, 즉 재료를 모두 가진 상태에서 추가로 내야 하는 골드는 얼마일까요?`, gold(m.base), numericOptions(m.base, pool.map(x => x.base), { step: 25 }).map(gold), {
     img: m.icons, imgClass: 'icon sm', srcs: ['DD'], sig: () => sigI(m.id, 'base'),
     explain: ex(`① 재료 합계 = ${parts.map(x => `${x.name} ${x.total}`).join(' + ')} = ${sum}`, `② 조합 비용 = 총 가격 ${m.total} − 재료 ${sum} = ${m.base}골드`,
       `💡 귀환할 때 골드가 ${m.base} 이상이면 재료만 들고 있어도 바로 완성할 수 있어요.`) });
@@ -477,16 +479,16 @@ gen('item', 3, 2, async () => {
 gen('item', 3, 2, async () => {
   const I = await ensure('items'); const m = pick(I.list.filter(x => x.stats.length && ['legendary', 'epic', 'boots'].includes(x.kind)));
   const s = pick(m.stats), pool = I.list.flatMap(x => x.stats.filter(y => y.label === s.label).map(y => y.value)), u = v => fmt(v) + (s.pct ? '%' : '');
-  return Q('item', `${m.name}이(가) 주는 ${s.label}은(는)?`, u(s.value), numericOptions(s.value, pool, { step: s.value < 10 ? 1 : 5 }).map(u), {
+  return Q('item', `${J(m.name, '이')} 주는 ${J(s.label, '은')} 얼마일까요?`, u(s.value), numericOptions(s.value, pool, { step: s.value < 10 ? 1 : 5 }).map(u), {
     img: m.icons, imgClass: 'icon sm', srcs: [m.src.desc], sig: () => sigI(m.id, 'stats'),
-    explain: ex(`${m.name}의 능력치: ${statsText(m)}`, `같은 ${s.label}을(를) 주는 아이템 중 최고값은 ${u(Math.max(...pool))}, 최저값은 ${u(Math.min(...pool))}입니다.`) });
+    explain: ex(`${m.name}의 능력치: ${statsText(m)}`, `같은 ${s.label}${josa(s.label, '을')} 주는 아이템 중 최고값은 ${u(Math.max(...pool))}, 최저값은 ${u(Math.min(...pool))}입니다.`) });
 }, itemOpt);
 gen('item', 3, 1, async () => {
   const I = await ensure('items'); const m = pick(I.list.filter(x => x.kind === 'legendary' && x.fromSR.length));
   const z = I.byId.get(pick(m.fromSR)), v = m.total - z.total;
-  return Q('item', `${z.name}을(를) 가진 상태에서 ${m.name}을(를) 완성하려면 추가로 필요한 골드는?`, gold(v), numericOptions(v, [m.total, m.base, Math.round(v + z.total / 2), v + 100, v - 100], { step: 50 }).map(gold), {
+  return Q('item', `${J(z.name, '을')} 가진 상태에서 ${J(m.name, '을')} 완성하려면 골드가 얼마나 더 필요할까요?`, gold(v), numericOptions(v, [m.total, m.base, Math.round(v + z.total / 2), v + 100, v - 100], { step: 50 }).map(gold), {
     srcs: ['DD'], sig: () => sigI(m.id, 'total') + sigI(z.id, 'total'),
-    explain: ex(`① ${m.name} 총 가격 ${m.total}`, `② 이미 가진 ${z.name} 가격 ${z.total}은(는) 그대로 인정됩니다`, `③ ${m.total} − ${z.total} = ${v}골드`, `💡 귀환 전에 이 금액이 모였는지 확인하면 완성 타이밍을 놓치지 않아요.`) });
+    explain: ex(`① ${m.name} 총 가격 ${m.total}`, `② 이미 가진 ${z.name} 가격 ${z.total}${josa(z.total, '은')} 그대로 인정됩니다`, `③ ${m.total} − ${z.total} = ${v}골드`, `💡 귀환 전에 이 금액이 모였는지 확인하면 완성 타이밍을 놓치지 않아요.`) });
 }, itemOpt);
 gen('item', 5, 2, async () => {
   const I = await ensure('items'); const n = pick([6, 9, 11, 13]);
@@ -497,11 +499,11 @@ gen('item', 5, 2, async () => {
   const cs = [], seen = new Set();
   for (const m of shuffle(cand)) { const h = itemStat(m, '체력'), a = itemStat(m, rl); const gain = Math.round((H + h) * (1 + (A + a) / 100) - base); if (seen.has(gain)) continue; seen.add(gain); cs.push({ m, h, a, gain }); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null; cs.sort((x, y) => y.gain - x.gain);
-  return Q('item', `레벨 ${n} ${c.name}(아이템 없음)이 아이템 하나를 산다면, ${phys ? '물리' : '마법'} 피해 기준 유효 체력이 가장 많이 늘어나는 것은?`, cs[0].m.name, cs.slice(1).map(x => x.m.name), {
+  return Q('item', `아이템이 없는 레벨 ${n} ${J(c.name, '이')} 다음 중 하나를 산다면, ${phys ? '물리' : '마법'} 피해 기준 유효 체력이 가장 많이 늘어나는 아이템은 무엇일까요?`, cs[0].m.name, cs.slice(1).map(x => x.m.name), {
     long: true, srcs: ['DD'], sig: () => sigC(c.key, 'stats') + cs.map(x => sigI(x.m.id, 'stats')).join(), champ: c.key,
     explain: ex(`① 레벨 ${n} ${c.name}: 체력 ${n2(H)}, ${rl} ${n2(A)} → 유효 체력 ${n2(H)} × (1 + ${n2(A)}/100) = ${Math.round(base)}`,
       ...cs.map(x => `• ${x.m.name} (체력 +${x.h}, ${rl} +${x.a}): (${n2(H + x.h)}) × (1 + ${n2(A + x.a)}/100) − ${Math.round(base)} = +${x.gain}`),
-      `💡 체력이 많은 챔피언에게는 ${rl}이(가), ${rl}이(가) 높은 챔피언에게는 체력이 더 효율적입니다. 체력과 ${rl}을(를) 균형 있게 올릴수록 유효 체력이 가장 많이 늘어요.`) });
+      `💡 체력이 많은 챔피언에게는 ${rl}${josa(rl, '이')}, ${rl}${josa(rl, '이')} 높은 챔피언에게는 체력이 더 효율적입니다. 체력과 ${rl}${josa(rl, '을')} 균형 있게 올릴수록 유효 체력이 가장 많이 늘어요.`) });
 }, itemOpt);
 gen('item', 4, 1, async () => {
   const I = await ensure('items'); const adItems = I.list.filter(m => itemStat(m, '공격력') > 0 && ['legendary', 'epic', 'basic'].includes(m.kind)); if (!adItems.length) return null;
@@ -509,7 +511,7 @@ gen('item', 4, 1, async () => {
   const a = pick(pool), b = pick(pool.filter(x => x.key !== a.key)), it = pick(adItems);
   const AD = lvlStat(a, 'attackdamage', n) + itemStat(it, '공격력'), AR = lvlStat(b, 'armor', n), HP = lvlStat(b, 'hp', n);
   const per = AD * dmgTaken(AR), hits = Math.ceil(HP / per), noItem = Math.ceil(HP / (lvlStat(a, 'attackdamage', n) * dmgTaken(AR)));
-  return Q('item', `레벨 ${n} ${a.name}이(가) ${it.name}만 산 상태로, 같은 레벨 ${b.name}(아이템 없음)을 기본 공격만으로 처치하려면 몇 대가 필요할까요? (치명타·룬 제외)`, hits + '대',
+  return Q('item', `${it.name}만 산 레벨 ${n} ${J(a.name, '이')} 아이템이 없는 같은 레벨 ${J(b.name, '을')} 기본 공격만으로 처치하려면 몇 대가 필요할까요? (치명타·룬 제외)`, hits + '대',
     numericOptions(hits, [noItem, Math.ceil(HP / AD), hits + 1, hits - 1, hits + 2], { step: 1 }).map(x => x + '대'), {
     long: false, srcs: ['DD'], sig: () => sigC(a.key, 'stats') + sigC(b.key, 'stats') + sigI(it.id, 'stats'),
     explain: ex(`① ${a.name} 공격력 = 레벨 ${n} 기본 ${n2(lvlStat(a, 'attackdamage', n))} + ${it.name} ${itemStat(it, '공격력')} = ${n2(AD)}`,
@@ -523,7 +525,7 @@ gen('item', 5, 2, async () => {
   for (const m of shuffle(pool)) { const e = Math.round(m.eff * 1000); if (seen.has(e)) continue; seen.add(e); cs.push(m); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null; cs.sort((a, b) => b.eff - a.eff);
   const labels = [...new Set(cs.flatMap(m => m.stats.map(s => s.label)))];
-  return Q('item', '능력치만 골드로 환산했을 때 골드 효율이 가장 높은 아이템은? (고유 효과 제외)', cs[0].name, cs.slice(1).map(x => x.name), {
+  return Q('item', '고유 효과를 빼고 능력치만 골드로 환산했을 때, 골드 효율이 가장 높은 아이템은 무엇일까요?', cs[0].name, cs.slice(1).map(x => x.name), {
     srcs: ['DD'], sig: () => cs.map(m => sigI(m.id, 'total') + sigI(m.id, 'stats')).join(),
     explain: ex(`① 능력치 1당 골드 가치 (모두 이번 패치 데이터에서 계산):`, ...labels.map(l => I.goldPer[l]).filter(Boolean).map(g => `   • ${g.label} 1 = ${n2(g.per)}골드 (${g.item}${g.how === 'derived' ? '에서 역산' : ' 기준'})`),
       `② 아이템별 능력치 가치 ÷ 가격:`, ...cs.map(m => `   • ${m.name}: ${m.stats.map(s => `${s.value}×${n2(I.goldPer[s.label].per)}`).join(' + ')} = ${Math.round(m.statValue)} ÷ ${m.total} = ${pct(m.eff)}`),
@@ -531,7 +533,7 @@ gen('item', 5, 2, async () => {
 }, itemOpt);
 gen('item', 5, 1, async () => {
   const I = await ensure('items'); const pool = I.list.filter(x => x.eff && !x.isRef && ['legendary', 'epic'].includes(x.kind)); const m = pick(pool), v = Math.round(m.eff * 100);
-  return Q('item', `${m.name}의 능력치 골드 가치는 가격 대비 몇 %일까요? (기본 아이템 기준 환산, 고유 효과 제외)`, v + '%', numericOptions(v, pool.map(x => Math.round(x.eff * 100)), { step: 4 }).map(x => x + '%'), {
+  return Q('item', `고유 효과를 빼고 능력치만 기본 아이템 가격으로 환산하면, ${m.name}의 가치는 가격 대비 몇 %일까요?`, v + '%', numericOptions(v, pool.map(x => Math.round(x.eff * 100)), { step: 4 }).map(x => x + '%'), {
     img: m.icons, imgClass: 'icon sm', srcs: ['DD'], sig: () => sigI(m.id, 'total') + sigI(m.id, 'stats'),
     explain: ex(...m.stats.map(s => `• ${s.label} ${s.value} × ${n2(I.goldPer[s.label].per)}골드 = ${Math.round(s.value * I.goldPer[s.label].per)} (${I.goldPer[s.label].item}${I.goldPer[s.label].how === 'derived' ? '에서 역산' : ' 기준'})`),
       `합계 ${Math.round(m.statValue)}골드 ÷ 가격 ${m.total}골드 = ${v}%`) });
@@ -543,30 +545,30 @@ gen('item', 5, 1, async () => {
 const summOpt = { need: 'summ' };
 gen('summ', 1, 3, async () => {
   const M = await ensure('summ'); const s = pick(M);
-  return Q('summ', `소환사 주문 「${s.name}」의 재사용 대기시간은?`, sec(s.cd), numericOptions(s.cd, M.map(x => x.cd), { step: 15 }).map(sec), {
+  return Q('summ', `소환사 주문 「${s.name}」의 재사용 대기시간은 몇 초일까요?`, sec(s.cd), numericOptions(s.cd, M.map(x => x.cd), { step: 15 }).map(sec), {
     img: s.icons, imgClass: 'icon sm', srcs: [s.src.cd], sig: () => sigM(s.id),
     explain: ex(`「${s.name}」: ${sec(s.cd)} = ${mmss(s.cd)}`, trunc(s.desc, 160), `💡 상대가 이 주문을 쓰면 ${mmss(s.cd)} 동안은 다시 못 씁니다. 그 시간이 공격적으로 들어갈 기회예요.`) });
 }, summOpt);
 gen('summ', 1, 2, async () => {
   const M = await ensure('summ'); if (M.length < OPTS) return null; const s = pick(M.filter(x => x.desc));
-  return Q('summ', `다음 설명의 소환사 주문은?<div class="quote">“${esc(trunc(mask(s.desc, [s.name]), 200))}”</div>`, s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
+  return Q('summ', `다음 설명에 해당하는 소환사 주문은 무엇일까요?<div class="quote">“${esc(trunc(mask(s.desc, [s.name]), 200))}”</div>`, s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
     raw: true, srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`정답: 「${s.name}」 (재사용 대기시간 ${sec(s.cd)})`, s.desc) });
 }, summOpt);
 gen('summ', 1, 1, async () => {
   const M = await ensure('summ'); const s = pick(M.filter(x => x.icons.length));
-  return Q('summ', '이 아이콘의 소환사 주문은?', s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
+  return Q('summ', '이 아이콘은 어떤 소환사 주문일까요?', s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
     img: s.icons, imgClass: 'icon', srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`「${s.name}」 — 재사용 대기시간 ${sec(s.cd)}`, trunc(s.desc, 140)) });
 }, summOpt);
 gen('summ', 2, 2, async () => {
   const M = await ensure('summ'); const cs = [], seen = new Set();
   for (const s of shuffle(M)) { if (seen.has(s.cd)) continue; seen.add(s.cd); cs.push(s); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null; const lo = Math.random() < 0.5; cs.sort((a, b) => lo ? a.cd - b.cd : b.cd - a.cd);
-  return Q('summ', `다음 중 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 소환사 주문은?`, cs[0].name, cs.slice(1).map(x => x.name), {
+  return Q('summ', `다음 중 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 소환사 주문은 무엇일까요?`, cs[0].name, cs.slice(1).map(x => x.name), {
     srcs: ['DD'], sig: () => cs.map(s => sigM(s.id)).join(), explain: ex(...cs.map((s, i) => `${i + 1}. ${s.name} ${sec(s.cd)} (${mmss(s.cd)})`)) });
 }, summOpt);
 gen('summ', 2, 2, async () => {
   const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60)), t = 2 + rand(12), sAt = rand(4) * 15, at = t * 60 + sAt, back = at + s.cd;
-  return Q('summ', `상대가 ${mmss(at)}에 「${s.name}」을(를) 썼습니다. 다시 쓸 수 있는 가장 빠른 시각은? (소환사 주문 가속 없음)`, mmss(back),
+  return Q('summ', `상대가 ${mmss(at)}에 「${s.name}」${josa(s.name, '을')} 썼습니다. 소환사 주문 가속이 없다면 다시 쓸 수 있는 가장 빠른 시각은 언제일까요?`, mmss(back),
     [back - 30, back + 30, back - 60, back + 60, at + Math.round(s.cd / 2)].map(mmss), {
     srcs: [s.src.cd], sig: () => sigM(s.id),
     explain: ex(`① 「${s.name}」 쿨타임 ${sec(s.cd)} = ${mmss(s.cd)}`, `② ${mmss(at)} + ${mmss(s.cd)} = ${mmss(back)}`, `💡 채팅에 "${s.name} ${mmss(back).replace('분 ', ':').replace('초', '')}"처럼 돌아오는 시각을 적어 두면 팀 전체가 교전 타이밍을 맞출 수 있어요.`) });
@@ -574,7 +576,7 @@ gen('summ', 2, 2, async () => {
 gen('summ', 3, 2, async () => {
   const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60)), t = 3 + rand(15), sAt = rand(60), at = t * 60 + sAt;
   const passed = 20 + rand(Math.max(1, Math.floor(s.cd) - 40)), now = at + passed, left = s.cd - passed;
-  return Q('summ', `상대 정글러가 ${mmss(at)}에 「${s.name}」을(를) 썼고, 지금은 ${mmss(now)}입니다. 다시 쓰기까지 몇 초 남았나요?`, sec(left),
+  return Q('summ', `상대 정글러가 ${mmss(at)}에 「${s.name}」${josa(s.name, '을')} 썼고, 지금은 ${mmss(now)}입니다. 다시 쓰기까지 몇 초 남았나요?`, sec(left),
     numericOptions(left, [passed, s.cd - left, left + 15, left - 15, left + 30], { step: 5 }).map(sec), {
     srcs: [s.src.cd], sig: () => sigM(s.id),
     explain: ex(`① 지난 시간 = ${mmss(now)} − ${mmss(at)} = ${passed}초`, `② 남은 시간 = 쿨타임 ${s.cd} − ${passed} = ${left}초`, `💡 ${left}초 안에 교전을 열면 상대는 「${s.name}」 없이 싸워야 합니다.`) });
@@ -586,13 +588,13 @@ gen('summ', 3, 2, async () => {
 const runeOpt = { need: 'runes' };
 gen('rune', 1, 2, async () => {
   const R = await ensure('runes'); if (R.trees.length < OPTS) return null; const r = pick(R.runes); const names = R.trees.map(t => t.name);
-  return Q('rune', `「${r.name}」 룬은 어느 룬 빌드에 있을까요?`, r.treeName, names.filter(n => n !== r.treeName), {
+  return Q('rune', `「${r.name}」 룬은 어느 룬 빌드에 속할까요?`, r.treeName, names.filter(n => n !== r.treeName), {
     order: names.slice(0, OPTS).includes(r.treeName) ? names.slice(0, OPTS) : null, img: r.icons, imgClass: 'icon sm', srcs: [r.src.name], sig: () => sigR(r.id),
     explain: ex(`「${r.name}」 → ${r.treeName} · ${r.keystone ? '핵심 룬' : (r.slot + 1) + '번째 줄'}`, r.desc ? `효과: ${trunc(r.desc, 150)}` : '') });
 }, runeOpt);
 gen('rune', 2, 2, async () => {
   const R = await ensure('runes'); const k = pick(R.runes.filter(r => r.keystone)); const wr = shuffle(R.runes.filter(r => !r.keystone)).slice(0, 4);
-  return Q('rune', '다음 중 핵심 룬은?', k.name, wr.map(x => x.name), {
+  return Q('rune', '다음 중 핵심 룬은 무엇일까요?', k.name, wr.map(x => x.name), {
     srcs: [k.src.name], sig: () => [k, ...wr].map(r => sigR(r.id)).join(),
     explain: ex(...[k, ...wr].map(r => `• ${r.name}: ${r.treeName} ${r.keystone ? '핵심 룬' : (r.slot + 1) + '번째 줄'}`), `💡 핵심 룬은 주 빌드의 첫 줄에서만 고를 수 있어요.`) });
 }, runeOpt);
@@ -600,7 +602,7 @@ gen('rune', 2, 1, async () => {
   const R = await ensure('runes'); const t = pick(R.trees.filter(x => x.slots[0] && x.slots[0].length));
   const mine = t.slots[0].map(id => R.byId.get(id)).filter(Boolean), c = pick(mine);
   const wr = shuffle(R.runes.filter(r => r.keystone && r.tree !== t.id)).slice(0, 4);
-  return Q('rune', `다음 중 「${t.name}」의 핵심 룬은?`, c.name, wr.map(x => x.name), {
+  return Q('rune', `다음 중 ${t.name} 빌드의 핵심 룬은 무엇일까요?`, c.name, wr.map(x => x.name), {
     srcs: ['DD'], sig: () => sigR(c.id) + wr.map(x => sigR(x.id)).join(),
     explain: ex(`${t.name} 핵심 룬: ${mine.map(x => x.name).join(', ')}`, ...wr.map(r => `• ${r.name} → ${r.treeName}`)) });
 }, runeOpt);
@@ -619,28 +621,28 @@ gen('rune', 2, 2, async () => {
   const D = `주 ${t.name}(${k.name}) + 보조 ${t.name}의 ${own.name}`;
   const E = `주 ${t.name}의 핵심 룬으로 ${otherK.name} 선택`;
   void rows;
-  return Q('rune', '다음 중 실제로 가능한 룬 조합은?', A, [B, C, D, E], {
+  return Q('rune', '다음 중 실제로 선택할 수 있는 룬 조합은 무엇일까요?', A, [B, C, D, E], {
     long: true, srcs: ['DD'], sig: () => [k, sub, badK, dup, own, otherK].map(r => sigR(r.id)).join(),
     explain: ex(`✅ ${A}: 보조 빌드는 주 빌드와 다른 빌드에서, 핵심 룬이 아닌 줄의 룬을 고르면 됩니다.`,
-      `❌ ${badK.name}은(는) ${badK.treeName}의 핵심 룬이라 보조로 고를 수 없어요.`,
-      `❌ ${sub.name}·${dup.name}은(는) 둘 다 ${sub.treeName} ${sub.slot + 1}번째 줄이라 하나만 고를 수 있어요.`,
+      `❌ ${badK.name}${josa(badK.name, '은')} ${badK.treeName}의 핵심 룬이라 보조로 고를 수 없어요.`,
+      `❌ ${sub.name}·${dup.name}${josa(dup.name, '은')} 둘 다 ${sub.treeName} ${sub.slot + 1}번째 줄이라 하나만 고를 수 있어요.`,
       `❌ 보조 빌드는 주 빌드(${t.name})와 같은 빌드일 수 없어요.`,
-      `❌ ${otherK.name}은(는) ${otherK.treeName}의 핵심 룬이라 ${t.name}을(를) 주 빌드로 하면 고를 수 없어요.`) });
+      `❌ ${otherK.name}${josa(otherK.name, '은')} ${otherK.treeName}의 핵심 룬이라 ${t.name}${josa(t.name, '을')} 주 빌드로 하면 고를 수 없어요.`) });
 }, runeOpt);
 gen('rune', 3, 2, async () => {
   const R = await ensure('runes'); const r = pick(R.runes.filter(x => !x.keystone));
   const t = R.trees.find(x => x.id === r.tree), row = t.slots[r.slot].filter(id => id !== r.id).map(id => R.byId.get(id)).filter(Boolean);
   if (!row.length) return null; const c = pick(row);
   const wr = shuffle(R.runes.filter(x => x.tree === r.tree && !x.keystone && x.slot !== r.slot)).slice(0, 4);
-  return Q('rune', `「${r.name}」와(과) 같은 줄이라 동시에 고를 수 없는 룬은?`, c.name, wr.map(x => x.name), {
+  return Q('rune', `「${r.name}」${josa(r.name, '과')} 같은 줄에 있어서 함께 고를 수 없는 룬은 무엇일까요?`, c.name, wr.map(x => x.name), {
     srcs: ['DD'], sig: () => sigR(r.id) + sigR(c.id),
     explain: ex(`${t.name}의 줄 구성:`, ...t.slots.map((ids, i) => `${i === 0 ? '핵심' : (i + 1) + '번째 줄'}: ${ids.map(id => (R.byId.get(id) || {}).name).filter(Boolean).join(' / ')}`),
-      `→ 「${r.name}」은(는) ${r.slot + 1}번째 줄이라 같은 줄의 ${row.map(x => x.name).join(', ')}과(와) 동시에 고를 수 없어요.`) });
+      `→ 「${r.name}」${josa(r.name, '은')} ${r.slot + 1}번째 줄이라 같은 줄의 ${row.map(x => x.name).join(', ')}${josa(row.map(x => x.name).join(', '), '과')} 동시에 고를 수 없어요.`) });
 }, runeOpt);
 gen('rune', 3, 1, async () => {
   const R = await ensure('runes'); const r = pick(R.runes.filter(x => x.desc && x.desc.length > 15));
   const same = R.runes.filter(x => x.id !== r.id && x.tree === r.tree), wr = shuffle(same.length >= 4 ? same : R.runes.filter(x => x.id !== r.id)).slice(0, 4);
-  return Q('rune', `다음 설명의 룬은?<div class="quote">“${esc(trunc(mask(r.desc, [r.name]), 200))}”</div>`, r.name, wr.map(x => x.name), {
+  return Q('rune', `다음 설명에 해당하는 룬은 무엇일까요?<div class="quote">“${esc(trunc(mask(r.desc, [r.name]), 200))}”</div>`, r.name, wr.map(x => x.name), {
     raw: true, srcs: [r.src.desc], sig: () => sigR(r.id), explain: ex(`정답: 「${r.name}」 — ${r.treeName} · ${r.keystone ? '핵심 룬' : (r.slot + 1) + '번째 줄'}`, r.desc) });
 }, runeOpt);
 
@@ -656,7 +658,7 @@ gen('patch', 3, 3, async () => {
   const f = v => fmtArr(v) + u;
   const delta = (o, n, m) => Array.isArray(o) ? o.map((x, i) => +(x + ((n[i] ?? x) - x) * m).toFixed(3)) : +(o + (n - o) * m).toFixed(3);
   const right = `${f(ch.old)} → ${f(ch.new)}`;
-  return Q('patch', `${D.from} → ${D.to} 패치에서 ${name}의 ${ch.label}은(는) 어떻게 바뀌었나요?`, right,
+  return Q('patch', `${D.from} → ${D.to} 패치에서 ${name}의 ${ch.label}${josa(ch.label, '은')} 어떻게 바뀌었나요?`, right,
     [`${f(ch.old)} → ${f(delta(ch.old, ch.new, -1))}`, `${f(ch.old)} → ${f(delta(ch.old, ch.new, 2))}`, `${f(ch.old)} → ${f(delta(ch.old, ch.new, 0.5))}`, '변경 없음'], {
     long: true, srcs: ['DD'],
     explain: ex(`실제 변경: ${right}`, typeof ch.old === 'number' ? `차이 ${n2(ch.new - ch.old)}${u} (${ch.new > ch.old ? '증가' : '감소'}, ${pct((ch.new - ch.old) / ch.old)})` : '') });
@@ -667,7 +669,7 @@ gen('patch', 2, 1, async () => {
   const byName = new Map(); nums.forEach(x => byName.set(x.name, x)); if (!byName.size) return null;
   const ch = pick([...byName.values()]);
   const unchanged = shuffle(S.champs.filter(c => !D.changes.some(x => x.key === c.key))).slice(0, 4).map(c => c.name);
-  return Q('patch', `이번 패치(${D.to})에서 기본 스탯이 바뀐 챔피언은?`, ch.name, unchanged, {
+  return Q('patch', `이번 ${D.to} 패치에서 기본 스탯이 바뀐 챔피언은 누구일까요?`, ch.name, unchanged, {
     srcs: ['DD'], explain: ex(`${ch.name} ${ch.label}: ${fmt(ch.old)} → ${fmt(ch.new)} (${ch.new > ch.old ? '상향' : '하향'})`, ...D.changes.filter(x => x.name === ch.name && x !== ch).slice(0, 4).map(x => `• ${x.label}: ${fmtArr(x.old)} → ${fmtArr(x.new)}`)) });
 });
 

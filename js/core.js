@@ -35,6 +35,27 @@ function hash(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { 
 const timeStr = t => t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
 const okv = r => r.status === 'fulfilled' ? r.value : null;
 
+
+/* ---------- 한국어 조사: 받침을 보고 자동 선택 (이/가, 은/는, 을/를, 과/와, 으로/로) ---------- */
+function jong(w) {
+  const t = String(w ?? '').replace(/[\s」』)\]"'.,!?%…·°+\-]+$/, '');
+  const ch = t[t.length - 1]; if (!ch) return 0;
+  const c = ch.charCodeAt(0);
+  if (c >= 0xAC00 && c <= 0xD7A3) return (c - 0xAC00) % 28;          // 0 = 받침 없음, 8 = ㄹ
+  if (/[0-9]/.test(ch)) return [21, 8, 0, 16, 0, 0, 1, 8, 8, 0][+ch];  // 영 일 이 삼 사 오 육 칠 팔 구
+  const l = ch.toLowerCase();
+  if (l === 'l' || l === 'r') return 8;
+  if (l === 'm' || l === 'n') return 4;
+  return 0;
+}
+const JOSA = { 이: ['이', '가'], 은: ['은', '는'], 을: ['을', '를'], 과: ['과', '와'], 이라: ['이라', '라'], 이고: ['이고', '고'], 이며: ['이며', '며'] };
+function josa(w, t) {
+  const jo = jong(w);
+  if (t === '으로') return jo === 0 || jo === 8 ? '로' : '으로';
+  const pr = JOSA[t]; return jo ? pr[0] : pr[1];
+}
+const J = (w, t) => String(w) + josa(w, t);
+
 /* ---------- 네트워크 ---------- */
 const ERRORS = [];
 function logErr(url, e) {
@@ -565,7 +586,7 @@ async function checkForUpdate(mode = '') {
     if (mode === 'force' || !S.ready || v.dd !== S.dd || cdHotfix) await loadAll(v, { reason: S.ready ? 'update' : 'init' });
     else {
       hooks.onState('ok');
-      if (!settings.followLatest && v.latest && v.latest !== S.dd) toast(`새 패치 ${v.latest}가 있어요. 설정에서 '최신 패치 자동 추적'을 켜면 적용됩니다.`);
+      if (!settings.followLatest && v.latest && v.latest !== S.dd) toast(`새 패치 ${J(v.latest, '이')} 있어요. 설정에서 '최신 패치 자동 추적'을 켜면 적용됩니다.`);
       else if (mode === 'manual') toast(`이미 최신 데이터입니다 (${S.dd})`);
     }
     S.fail = 0;
