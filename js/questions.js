@@ -47,9 +47,9 @@ const sigI = (id, f) => { const I = S.data.items; if (!I) return '?'; const m = 
 const chargeTag = s => s.charge ? `(${s.charge.max ? '최대 ' + s.charge.max + '회 ' : ''}충전식)` : '';
 const chargeNote = s => {
   const c = s.charge; if (!c) return '';
-  if (c.max && c.rech && c.rech !== s.cd) return `※ 「${s.name}」는 최대 ${c.max}회까지 충전되는 주문이에요. ${sec(s.cd)}는 연속으로 쓸 때 사이에 필요한 재사용 대기시간이고, 쓴 충전 1회는 ${sec(c.rech)} 뒤에 다시 채워집니다.`;
-  if (c.max && c.rech) return `※ 「${s.name}」는 최대 ${c.max}회까지 충전되는 주문이에요. 충전 1회가 ${sec(c.rech)}마다 채워집니다.`;
-  return `※ 「${s.name}」는 여러 번 충전되는 주문이라 위 재사용 대기시간 하나로 모든 상황을 설명할 수 없어요. 정확한 충전 횟수와 시간은 주문 설명을 확인하세요.`;
+  if (c.max && c.rech && c.rech !== s.cd) return `※ 「${s.name}」${josa(s.name, '은')} 최대 ${c.max}회까지 충전되는 주문이에요. ${sec(s.cd)}는 연속으로 쓸 때 사이에 필요한 재사용 대기시간이고, 쓴 충전 1회는 ${sec(c.rech)} 뒤에 다시 채워집니다.`;
+  if (c.max && c.rech) return `※ 「${s.name}」${josa(s.name, '은')} 최대 ${c.max}회까지 충전되는 주문이에요. 충전 1회가 ${sec(c.rech)}마다 채워집니다.`;
+  return `※ 「${s.name}」${josa(s.name, '은')} 여러 번 충전되는 주문이라 위 재사용 대기시간 하나로 모든 상황을 설명할 수 없어요. 정확한 충전 횟수와 시간은 주문 설명을 확인하세요.`;
 };
 const sigM = id => { const M = S.data.summ; if (!M) return '?'; const s = M.find(x => x.id === id); return JSON.stringify(s ? [s.name, s.cd] : null); };
 const sigR = id => { const R = S.data.runes; if (!R) return '?'; const r = R.byId.get(id); return JSON.stringify(r ? [r.name, r.tree, r.slot] : null); };
@@ -260,7 +260,7 @@ gen('champ', 5, 2, async () => {
     explain: ex(...growthLines(n),
       `② ${a.name}: ${fmt(a.stats[k])} + ${fmt(a.stats[k + 'perlevel'])} × ${n2(growthMul(n))} = ${n2(an)}`,
       `③ ${b.name}: ${fmt(b.stats[k])} + ${fmt(b.stats[k + 'perlevel'])} × ${n2(growthMul(n))} = ${n2(bn)}`,
-      `④ 차이 = ${n2(an)} − ${n2(bn)} = ${n2(an - bn)} → 「${ans}」`,
+      `④ 차이 = ${n2(an)} − ${n2(bn)} = ${n2(Math.round(an * 100) / 100 - Math.round(bn * 100) / 100)} → 「${ans}」`,
       an < bn ? `💡 ${J(a.name, '은')} 레벨 1에서 앞서지만, 레벨당 성장치가 ${fmt(a.stats[k + 'perlevel'])}${josa(fmt(a.stats[k + 'perlevel']), '으로')} ${b.name}(${fmt(b.stats[k + 'perlevel'])})보다 작아서 레벨 ${n}에서는 역전당합니다. 초반에 강한 쪽은 이 레벨 전에 이득을 봐야 해요.`
         : `💡 ${a.name}${josa(a.name, '은')} 레벨 ${n}까지도 우위를 유지합니다. 성장치 차이가 레벨 1 격차를 뒤집기에는 부족해요.`) });
 });
@@ -672,10 +672,11 @@ const hasDmg = d => d.spells.some(s => s.dmg && s.dmg.length);
 /** 피해 항목 이름에서 시전 단계·적중 구역을 읽어 문장으로 만든다 (모르면 게임 데이터 항목명과 순번만 보여 줌) */
 function hitInfo(s, h) {
   const idx = s.dmg.indexOf(h) + 1, tot = s.dmg.length;
-  const ORD = [[/first|1st/i, 1], [/second|2nd|recast/i, 2], [/third|3rd/i, 3], [/fourth|4th/i, 4]];
-  let step = (ORD.find(([re]) => re.test(h.name)) || [])[1];
+  const ORD = [[/(?:^|[^a-z])(?:first|1st)/i, 1], [/second|2nd|recast/i, 2], [/third|3rd/i, 3], [/fourth|4th/i, 4]];
+  let step = (ORD.find(([re]) => re.test(h.name.replace(/([a-z])([A-Z])/g, '$1 $2'))) || [])[1];
   if (!step) { const m = /(?:[A-Za-z])([1-5])(?:Damage|Dmg)?$/.exec(h.name) || /^[QWER]([1-5])/.exec(h.name); if (m) step = +m[1]; }
-  const area = /sweet|center|centre|core|tip|inner/i.test(h.name) ? '가장 효과가 큰 구역에 맞은 경우' : /edge|outer|rim/i.test(h.name) ? '가장자리에 맞은 경우' : '';
+  const words = String(h.name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/);
+  const area = words.some(w => ['sweet', 'sweetspot', 'center', 'centre', 'core', 'tip', 'inner'].includes(w)) ? '가장 효과가 큰 구역에 맞은 경우' : words.some(w => ['edge', 'outer', 'rim'].includes(w)) ? '가장자리에 맞은 경우' : '';
   const parts = [];
   if (tot > 1) parts.push(`총 ${tot}개 중 ${idx}번째`);
   if (step) parts.push(`${step}번째 시전(타격) 단계`);
@@ -741,8 +742,8 @@ gen('skill', 4, 3, async () => {
   return Q('skill', `레벨 ${n} ${J(d.champ.name, '이')} ${s.key} 「${s.name}」 ${r}레벨로 ${hi.text}에 해당하는 피해를 한 번 적중시켰습니다. ${given.join(', ')}일 때 들어가는 피해는 얼마일까요? (방어력·마법 저항력 적용 전, 반올림)`,
     fmt(ans), opts.map(fmt), {
       long: true, sig: dmgSig(x), needs: needsKey(x), champ: d.key, srcs: ['CDG', 'DD'],
-      explain: ex(`① ${r}레벨 기본 피해: ${fmt(v.flat)}`, ...stepLines.map((l, i) => `${i + 2}. ${l}`),
-        `② 합계: ${fmt(v.flat)} + ${kinds(v).map(k => n2((k === 'ap' ? st.ap : st[k]) * v.r[k])).join(' + ')} = ${n2(dmgValue(v, st))} → 반올림 ${fmt(ans)}`,
+      explain: ex(`① ${r}레벨 기본 피해: ${fmt(v.flat)}`, '② 계수 적용:', ...stepLines.map(l => `• ${l}`),
+        `③ 합계: ${fmt(v.flat)} + ${kinds(v).map(k => n2((k === 'ap' ? st.ap : st[k]) * v.r[k])).join(' + ')} = ${n2(dmgValue(v, st))} → 반올림 ${fmt(ans)}`,
         usesAD ? `💡 계수가 「추가 공격력」이면 기본 공격력은 빼고 템·룬으로 늘어난 공격력만 곱합니다. 총 공격력과 헷갈리는 게 가장 흔한 실수예요. (이 문제의 기본 공격력은 레벨 ${n}의 ${n2(baseAD)})` : '💡 주문력 계수 스킬은 주문력 아이템 한 개를 사면 계수만큼 피해가 늘어납니다. 기본 피해는 스킬 레벨로만 오릅니다.',
         hi.tot > 1 ? `💡 같은 스킬이라도 ${hi.tot}개 항목 중 어느 쪽인지에 따라 값이 다릅니다. 이 문제는 「${h.name}」 기준이에요.` : '', dmgNote(x)) });
 }, { d: true });
@@ -773,7 +774,7 @@ gen('skill', 4, 3, async () => {
     fmt(ans), opts.map(fmt), {
       long: true, need: 'items', sig: () => dmgSig(x)() + bought.map(m => sigI(m.id, 'stats')).join(), needs: needsKey(x), champ: d.key, srcs: ['CDG', 'DD'],
       explain: ex(`① 아이템 능력치: ${bought.map(m => `${m.name}(${statsText(m)})`).join(' + ')} → 주문력 ${AP}, 추가 공격력 ${BAD}`,
-        `② ${r}레벨 기본 피해 ${fmt(v.flat)}에 계수 적용:`, ...stepLines,
+        `② ${r}레벨 기본 피해 ${fmt(v.flat)}에 계수 적용:`, ...stepLines.map(l => `• ${l}`),
         `③ 합계: ${fmt(v.flat)} + ${kinds(v).map(k => { const sv = k === 'ap' ? AP : k === 'bad' ? BAD : k === 'ad' ? baseAD + BAD : baseAD; return n2(sv * v.r[k]); }).join(' + ')} = ${n2(val(v))} → 반올림 ${fmt(ans)}`,
         `비교: 아이템이 없을 때는 ${fmt(none)}이므로 이 아이템으로 피해가 ${fmt(ans - none)} 늘었습니다.`,
         (v.r.ad || v.r.bsad) ? `💡 레벨 ${n} 기본 공격력은 ${n2(baseAD)}이고, 계수 종류(총/추가/기본)에 따라 곱하는 값이 달라집니다.` : '💡 주문력 계수 스킬은 아이템 하나가 곧 계수만큼의 피해 증가로 이어집니다. 아이템 가격 대비 피해 증가를 비교할 때 쓰는 계산이에요.', dmgNote(x)) });

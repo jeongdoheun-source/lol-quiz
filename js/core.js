@@ -329,7 +329,7 @@ function evalCalc(calc, dv, rank, all, depth = 0) {
   if (calc.mMultiplier) { const m = part(calc.mMultiplier); if (!isConst(m)) return null; acc = scale(acc, m.flat); }
   return acc;
 }
-const DMG_NAME = /damage|dmg/i, DMG_SKIP = /heal|shield|mana|cooldown|reduc|percent|pct|ratio|max.?health|current.?health|missing|\bcap\b|monster|minion.*bonus|tooltip/i;
+const DMG_NAME = /damage|dmg/i, DMG_SKIP = /heal|shield|mana|cooldown|reduc|percent|pct|ratio|multiplier|mult$|mod$|slow|duration|stun|radius|range|speed|max.?health|current.?health|missing|\bcap\b|monster|minion.*bonus|tooltip/i;
 /** 스킬 하나의 피해 항목 목록: [{ name, ranks: [{flat, r}, ...] }] */
 function buildDamage(sp, maxrank) {
   if (!sp) return null;
