@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#010a13">
+<title>LoL 챔피언 퀴즈</title>
+<link rel="preconnect" href="https://ddragon.leagueoflegends.com">
+<link rel="preconnect" href="https://raw.communitydragon.org">
+<style>
+:root{
+  --bg:#010a13; --panel:#0a1428; --panel2:#0f1e36; --line:#1e2d45;
+  --gold:#c8aa6e; --gold2:#f0e6d2; --gold3:#785a28; --teal:#0ac8b9;
+  --ok:#2fbf71; --bad:#e84057; --mut:#8a9bb3; --txt:#e7ecf3;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic","Noto Sans KR",sans-serif;
+  line-height:1.5;-webkit-text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background:radial-gradient(1200px 600px at 50% -200px,#0b2340 0%,transparent 70%),var(--bg)}
+button{font:inherit;color:inherit;cursor:pointer}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;
+  padding:12px 16px;background:rgba(1,10,19,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;letter-spacing:.02em;color:var(--gold2);font-size:17px;flex:1;cursor:pointer}
+.brand b{color:var(--gold)}
+.pill{display:flex;align-items:center;gap:8px;border:1px solid var(--gold3);background:var(--panel);
+  padding:6px 12px;border-radius:999px;font-size:13px;color:var(--gold2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.busy{background:var(--teal);animation:pulse 1s infinite}
+.dot.err{background:var(--bad)}
+@keyframes pulse{50%{opacity:.3}}
+main{max-width:760px;margin:0 auto;padding:18px 16px 60px}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--r);padding:20px}
+h1{font-size:24px;margin:4px 0 6px;color:var(--gold2)}
+h2{font-size:20px;margin:0 0 14px;line-height:1.45}
+.sub{color:var(--mut);font-size:14px;margin:0 0 18px}
+.label{font-size:13px;color:var(--gold);font-weight:700;margin:18px 0 8px;letter-spacing:.04em}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--bg);padding:9px 14px;border-radius:999px;font-size:14px;
+  transition:.15s;user-select:none}
+.chip[aria-pressed="true"]{border-color:var(--gold);background:rgba(200,170,110,.14);color:var(--gold2)}
+.chip:disabled{opacity:.35;cursor:not-allowed}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--gold);
+  background:linear-gradient(180deg,#1e2328,#0f1317);color:var(--gold2);padding:13px 22px;border-radius:12px;
+  font-weight:700;font-size:16px;min-height:48px}
+.btn.primary{background:linear-gradient(180deg,#c8aa6e,#9b7d44);color:#0b0f14;border-color:#f0e6d2}
+.btn.ghost{border-color:var(--line);background:transparent;color:var(--txt);font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.block{width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.stat b{display:block;font-size:20px;color:var(--gold2)}
+.stat span{font-size:12px;color:var(--mut)}
+.qmeta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--mut);margin-bottom:10px}
+.bar{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:16px}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--gold3),var(--gold));transition:width .3s}
+.media{display:flex;justify-content:center;margin:4px 0 16px}
+.media .frame{position:relative;overflow:hidden;border-radius:12px;border:2px solid var(--gold3);background:#000}
+.media .icon{width:128px;height:128px}
+.media .splash{width:min(100%,300px);aspect-ratio:308/400}
+.media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opts.long{grid-template-columns:1fr}
+.opt{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:var(--bg);
+  border-radius:12px;padding:12px 14px;min-height:54px;font-size:15px;transition:.12s}
+.opt:hover:not(:disabled){border-color:var(--gold3);background:#08111e}
+.opt .k{flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font-size:12px;
+  background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.opt.ok{border-color:var(--ok);background:rgba(47,191,113,.14)}
+.opt.bad{border-color:var(--bad);background:rgba(232,64,87,.14)}
+.opt:disabled{cursor:default}
+.fb{margin-top:16px;padding:14px;border-radius:12px;background:var(--bg);border:1px solid var(--line);font-size:14px}
+.fb .t{font-weight:800;font-size:16px;margin-bottom:4px}
+.fb .t.ok{color:var(--ok)} .fb .t.bad{color:var(--bad)}
+.src{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;margin:6px 4px 0 0;
+  border:1px solid var(--line);color:var(--mut)}
+.src.dd{border-color:#2a5a8a;color:#8cc3ff} .src.cd{border-color:#5b3d8a;color:#c9a6ff}
+.src.fill{border-color:var(--teal);color:var(--teal)}
+.spin{width:36px;height:36px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;
+  animation:sp 0.8s linear infinite;margin:40px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  z-index:50;max-width:92vw;background:var(--panel2);border:1px solid var(--gold);color:var(--gold2);
+  padding:12px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;
+  box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.sheet{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px 18px 0 0;padding:20px 18px calc(24px + env(safe-area-inset-bottom))}
+@media(min-width:700px){.overlay{align-items:center}.sheet{border-radius:18px}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+.kv dt{color:var(--mut)} .kv dd{margin:0;color:var(--gold2);word-break:break-all}
+select{font:inherit;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.radio{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px}
+.radio input{margin-top:4px;accent-color:var(--gold)}
+.changes{font-size:13px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
+.changes div{padding:3px 0;border-bottom:1px dashed var(--line)}
+.up{color:var(--ok)} .down{color:var(--bad)}
+.review{margin-top:14px;font-size:14px}
+.review div{padding:10px 0;border-bottom:1px solid var(--line)}
+.mut{color:var(--mut)}
+[hidden]{display:none!important}
+@media(max-width:420px){
+  h2{font-size:18px} .opt{font-size:14px;padding:11px 12px} .card{padding:16px}
+  .media .icon{width:112px;height:112px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand" id="brand">LoL <b>챔피언 퀴즈</b></div>
+  <button class="pill" id="verBtn" aria-label="데이터 설정"><span class="dot" id="dot"></span><span id="verTxt">불러오는 중…</span></button>
+</header>
+
+<main>
+  <!-- 홈 -->
+  <section id="home" class="card">
+    <h1>챔피언 퀴즈</h1>
+    <p class="sub" id="homeSub">Data Dragon + CommunityDragon 데이터를 불러오는 중입니다…</p>
+    <div class="label">출제 분야 (여러 개 선택)</div>
+    <div class="chips" id="catChips"></div>
+    <div class="label">문제 수</div>
+    <div class="chips" id="cntChips"></div>
+    <div id="errBox" class="fb" style="border-color:var(--bad)" hidden></div>
+    <div style="margin-top:22px"><button class="btn primary block" id="startBtn" disabled>시작하기</button></div>
+    <div class="stats">
+      <div class="stat"><b id="stBest">-</b><span>최고 정답률</span></div>
+      <div class="stat"><b id="stStreak">-</b><span>최고 연속 정답</span></div>
+      <div class="stat"><b id="stChamps">-</b><span>챔피언 수</span></div>
+    </div>
+  </section>
+
+  <!-- 퀴즈 -->
+  <section id="quiz" class="card" hidden>
+    <div class="qmeta"><span id="qCat"></span><span id="qProg"></span></div>
+    <div class="bar"><i id="qBar" style="width:0"></i></div>
+    <div id="qBody"></div>
+  </section>
+
+  <!-- 결과 -->
+  <section id="result" class="card" hidden></section>
+</main>
+
+<div class="overlay" id="ov">
+  <div class="sheet" role="dialog" aria-label="데이터 설정">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">데이터 & 자동 갱신</h2>
+      <button class="btn ghost" id="ovClose" style="min-height:38px;padding:6px 14px">닫기</button>
+    </div>
+    <dl class="kv" id="kv"></dl>
+    <div class="label">버전 추적</div>
+    <label class="radio"><input type="radio" name="track" value="latest"><span><b>최신 패치 자동 추적</b><br><span class="mut">새 패치가 나오면 자동으로 데이터를 바꾸고 문제를 다시 만듭니다.</span></span></label>
+    <label class="radio"><input type="radio" name="track" value="pinned"><span><b id="pinLabel">고정</b><br><span class="mut">이 버전으로 고정. 새 패치는 알림만 띄웁니다.</span></span></label>
+    <div class="label">확인 간격</div>
+    <div class="row">
+      <select id="pollSel">
+        <option value="5">5분마다</option><option value="10">10분마다</option>
+        <option value="30">30분마다</option><option value="60">1시간마다</option><option value="180">3시간마다</option>
+      </select>
+      <button class="btn ghost" id="checkNow" style="min-height:42px">지금 확인</button>
+      <button class="btn ghost" id="forceReload" style="min-height:42px">강제 다시 불러오기</button>
+    </div>
+    <div class="label">데이터 상호 보강 현황</div>
+    <div id="fillInfo" class="mut" style="font-size:14px"></div>
+    <div class="label">최근 패치 수치 변경</div>
+    <div id="chgInfo"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+ *  설정
+ * ===================================================================== */
+const CFG = {
+  BASE_VERSION: '16.22.1',            // 기준 버전 (고정 모드에서 사용)
+  LANG_DD: 'ko_KR', LANG_CD: 'ko_kr',
+  DD: 'https://ddragon.leagueoflegends.com',
+  CD: 'https://raw.communitydragon.org',
+  DEFAULT_POLL_MIN: 30,
+  PREFETCH: 4,                        // 상세 데이터 미리 받아둘 챔피언 수
+};
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('lolquiz:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('lolquiz:' + k, JSON.stringify(v)); } catch (e) {} },
+};
+const settings = Object.assign({ followLatest: true, pollMin: CFG.DEFAULT_POLL_MIN }, store.get('settings', {}));
+const saveSettings = () => store.set('settings', settings);
+
+/* =====================================================================
+ *  유틸
+ * ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rand = n => Math.floor(Math.random() * n);
+const pick = a => { if (!a || !a.length) throw new Error('후보 없음'); return a[rand(a.length)]; };
+function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const fmt = n => typeof n === 'number' ? String(+n.toFixed(3)) : String(n ?? '');
+const fmtArr = a => Array.isArray(a) ? a.map(fmt).join(' / ') : fmt(a);
+const isEmpty = v => v == null || v === '' || (Array.isArray(v) && v.length === 0) || (typeof v === 'number' && !isFinite(v));
+const strip = s => s ? String(s).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/\{\{[^}]*\}\}/g, '…').replace(/\s+/g, ' ').trim() : '';
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function hash(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16); }
+const timeStr = t => t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
+
+const ERRORS = [];
+function logErr(url, e) {
+  const kind = e.name === 'AbortError' ? '시간 초과'
+    : e.kind === 'http' ? e.message
+    : e instanceof SyntaxError ? 'JSON 형식 오류'
+    : '접속 차단(CORS/CSP) 또는 네트워크 오류';
+  ERRORS.push({ url, kind, at: Date.now() });
+  if (ERRORS.length > 40) ERRORS.shift();
+  console.warn('[fetch 실패]', kind, url, e);
+}
+async function getJSON(url, { fresh = false, timeout = 12000 } = {}) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, cache: fresh ? 'no-store' : 'default', mode: 'cors', credentials: 'omit' });
+    if (!r.ok) { const e = new Error('HTTP ' + r.status); e.kind = 'http'; throw e; }
+    return await r.json();
+  } catch (e) { logErr(url, e); throw e; }
+  finally { clearTimeout(t); }
+}
+/** 실행 환경 진단: 외부 데이터 접속이 막히는 대표적인 경우 */
+function envHints() {
+  const h = [];
+  let framed = false; try { framed = window.top !== window.self; } catch (e) { framed = true; }
+  let opaque = false; try { opaque = location.origin === 'null'; } catch (e) { opaque = true; }
+  if (framed || opaque) h.push('미리보기(샌드박스) 창 안에서 열린 것 같아요. Claude 앱의 파일 미리보기처럼 외부 서버 접속을 막는 화면에서는 데이터를 받을 수 없습니다. GitHub Pages나 Netlify에 올린 뒤 Chrome이나 Safari 같은 브라우저로 열어 주세요.');
+  let proto = ''; try { proto = location.protocol; } catch (e) {}
+  if (proto === 'file:') h.push('파일을 직접 열었어요(file://). 모바일 브라우저는 이 방식에서 외부 요청을 막는 경우가 많습니다. 웹에 올리거나 로컬 서버(python3 -m http.server)로 열어 주세요.');
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) h.push('기기가 오프라인 상태입니다.');
+  return h;
+}
+
+/* =====================================================================
+ *  데이터 소스 URL
+ * ===================================================================== */
+const U = {
+  ddVersions: () => `${CFG.DD}/api/versions.json`,
+  ddSummary: v => `${CFG.DD}/cdn/${v}/data/${CFG.LANG_DD}/champion.json`,
+  ddDetail: (v, id) => `${CFG.DD}/cdn/${v}/data/${CFG.LANG_DD}/champion/${id}.json`,
+  ddImg: (v, g, f) => `${CFG.DD}/cdn/${v}/img/${g}/${f}`,
+  ddLoading: (id, n) => `${CFG.DD}/cdn/img/champion/loading/${id}_${n}.jpg`,
+  cdMeta: () => `${CFG.CD}/latest/content-metadata.json`,
+  cdBase: p => `${CFG.CD}/${p}/plugins/rcp-be-lol-game-data/global`,
+  cdSummary: p => `${U.cdBase(p)}/${CFG.LANG_CD}/v1/champion-summary.json`,
+  cdDetail: (p, k) => `${U.cdBase(p)}/${CFG.LANG_CD}/v1/champions/${k}.json`,
+  cdAsset: (p, path) => path ? `${U.cdBase(p)}/default/${String(path).replace(/^\/?lol-game-data\/assets\//i, '').toLowerCase()}` : null,
+};
+
+/* =====================================================================
+ *  상태
+ * ===================================================================== */
+const S = {
+  dd: null, latest: null, cdPath: null, cdVersion: null,
+  champs: [], byKey: new Map(), details: new Map(), pending: new Map(),
+  hash: null, fill: null, lastCheck: 0, nextCheck: 0, fail: 0,
+  loading: false, ready: false, game: null, timer: null, detailFail: 0, loadErr: null,
+};
+const newFill = () => ({ CD: {}, DD: {}, cdOnlyChamps: 0, ddOnlyChamps: 0 });
+function bump(src, field) { S.fill[src][field] = (S.fill[src][field] || 0) + 1; }
+/** 우선 소스 값이 비어 있으면 보조 소스로 채우고 기록 */
+function prefer(field, a, aSrc, b, bSrc) {
+  if (!isEmpty(a)) return [a, aSrc];
+  if (!isEmpty(b)) { bump(bSrc, field); return [b, bSrc]; }
+  return [null, null];
+}
+const srcTag = s => s === 'DD' ? `<span class="src dd">Data Dragon ${esc(S.dd)}</span>` : s === 'CD' ? `<span class="src cd">CommunityDragon ${esc(S.cdPath)}</span>` : '';
+
+/* =====================================================================
+ *  1) 버전 확인
+ * ===================================================================== */
+async function resolveVersions() {
+  let dd = CFG.BASE_VERSION, latest = null, list = null;
+  try { list = await getJSON(U.ddVersions(), { fresh: true }); latest = list[0]; } catch (e) { console.warn('versions.json 실패', e); }
+  if (settings.followLatest && latest) dd = latest;
+  else if (list && !list.includes(CFG.BASE_VERSION) && latest) dd = latest;
+  let cdLatest = null;
+  try { const m = await getJSON(U.cdMeta(), { fresh: true }); cdLatest = m.version || null; } catch (e) {}
+  return { dd, latest, cdLatest, list };
+}
+
+/** DD champion.json: 선택 버전이 실패하면 최신 → 기준(16.22.1) → 직전 버전 순으로 재시도 */
+async function fetchDdSummary(v) {
+  const cands = [...new Set([v.dd, v.latest, CFG.BASE_VERSION, v.list && v.list[1]].filter(Boolean))];
+  for (const ver of cands) { try { return { ver, data: await getJSON(U.ddSummary(ver)) }; } catch (e) {} }
+  return { ver: v.dd, data: null };
+}
+
+/** DD 버전과 맞는 CDragon 경로 선택: 16.22.1 → /16.22/ , 실패 시 /latest/ */
+async function fetchCdSummary(ver, cdLatest) {
+  const mm = ver.split('.').slice(0, 2).join('.');
+  const cands = [];
+  if (settings.followLatest && cdLatest && cdLatest.startsWith(mm + '.')) cands.push('latest');
+  cands.push(mm);
+  if (!cands.includes('latest')) cands.push('latest');
+  for (const p of cands) { try { return { p, data: await getJSON(U.cdSummary(p)) }; } catch (e) {} }
+  return { p: 'latest', data: null };
+}
+
+/* =====================================================================
+ *  2) 요약 데이터 병합 (DD champion.json + CD champion-summary.json)
+ * ===================================================================== */
+const TAGS = { Fighter: '전사', Tank: '탱커', Mage: '마법사', Assassin: '암살자', Marksman: '원거리 딜러', Support: '서포터' };
+const roleToTag = r => { const s = String(r || '').toLowerCase(); return Object.keys(TAGS).find(t => t.toLowerCase() === s) || null; };
+
+function mergeSummary(dd, cd) {
+  const byKey = new Map();
+  if (dd && dd.data) for (const c of Object.values(dd.data)) {
+    byKey.set(+c.key, {
+      key: +c.key, id: c.id, alias: c.id, name: c.name, title: c.title, tags: c.tags || [], partype: c.partype,
+      stats: c.stats || null, blurb: c.blurb, iconDD: c.image && c.image.full, iconCD: null, ddOk: true, cdOk: false,
+      src: { name: 'DD', title: 'DD', tags: 'DD', stats: 'DD' },
+    });
+  }
+  for (const c of (Array.isArray(cd) ? cd : [])) {
+    if (!(c.id > 0)) continue;
+    let m = byKey.get(c.id);
+    if (!m) { // DD에 아직 없는 챔피언(신규 출시 직후 등) → CD로 생성
+      m = { key: c.id, id: c.alias, alias: c.alias, tags: [], stats: null, ddOk: false, src: {} };
+      byKey.set(c.id, m); S.fill.cdOnlyChamps++;
+    }
+    m.cdOk = true;
+    m.iconCD = c.squarePortraitPath;
+    if (isEmpty(m.name) && c.name) { m.name = c.name; m.src.name = 'CD'; if (m.ddOk) bump('CD', 'name'); }
+    if (isEmpty(m.alias) && c.alias) m.alias = c.alias;
+    if (isEmpty(m.tags) && Array.isArray(c.roles)) {
+      const t = c.roles.map(roleToTag).filter(Boolean);
+      if (t.length) { m.tags = t; m.src.tags = 'CD'; bump('CD', 'tags'); }
+    }
+  }
+  for (const m of byKey.values()) if (m.ddOk && !m.cdOk) S.fill.ddOnlyChamps++;
+  return [...byKey.values()].filter(c => c.name).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+}
+
+function iconUrls(c) {
+  return [
+    c.iconDD && U.ddImg(S.dd, 'champion', c.iconDD),
+    c.iconCD && U.cdAsset(S.cdPath, c.iconCD),
+    U.cdAsset(S.cdPath, `/lol-game-data/assets/v1/champion-icons/${c.key}.png`),
+  ].filter(Boolean);
+}
+
+/* =====================================================================
+ *  3) 상세 데이터 병합 (챔피언별, 필요할 때만 로드 → 모바일 데이터 절약)
+ * ===================================================================== */
+const SLOTS = ['Q', 'W', 'E', 'R'];
+const RARITY = { kNoRarity: '일반', kRare: '희귀', kEpic: '서사', kLegendary: '전설', kMythic: '신화', kUltimate: '궁극', kTranscendent: '초월', kExalted: '고귀' };
+const DMG = { kPhysical: '물리', kMagic: '마법', kMixed: '혼합' };
+
+function cleanArr(arr, n) {
+  if (!Array.isArray(arr)) return null;
+  let a = arr.map(Number).filter(x => isFinite(x));
+  if (n) a = a.slice(0, n);
+  else while (a.length > 1 && a[a.length - 1] === 0) a.pop();
+  return a.length && !a.every(x => x === 0) ? a : null;
+}
+
+function mergeDetail(c, dd, cd, ver, p) {
+  // 칭호가 요약에 없던 경우 보강
+  if (isEmpty(c.title)) { const [t, ts] = prefer('title', dd && dd.title, 'DD', cd && cd.title, 'CD'); if (t) { c.title = t; c.src.title = ts; } }
+  if (isEmpty(c.tags) && cd && Array.isArray(cd.roles)) { c.tags = cd.roles.map(roleToTag).filter(Boolean); c.src.tags = 'CD'; }
+  const [lore, loreSrc] = prefer('lore', strip(dd && dd.lore), 'DD', strip(cd && cd.shortBio), 'CD');
+
+  const spells = SLOTS.map((K, i) => {
+    const a = dd && dd.spells ? dd.spells[i] : null;
+    const cs = cd && Array.isArray(cd.spells) ? cd.spells : [];
+    const b = cs.find(s => String(s.spellKey || '').toUpperCase() === K) || cs[i] || null;
+    if (!a && !b) return null;
+    const maxrank = (a && a.maxrank) || (b && b.maxLevel) || (K === 'R' ? 3 : 5);
+    const [name, nS] = prefer('스킬 이름', a && a.name, 'DD', b && b.name, 'CD');
+    const [cool, cS] = prefer('재사용 대기시간', cleanArr(a && a.cooldown, maxrank), 'DD', cleanArr(b && b.cooldownCoefficients, maxrank), 'CD');
+    const [cost, coS] = prefer('소모값', cleanArr(a && a.cost, maxrank), 'DD', cleanArr(b && b.costCoefficients, maxrank), 'CD');
+    const [desc, dS] = prefer('스킬 설명', strip(a && a.description), 'DD', strip(b && (b.description || b.dynamicDescription)), 'CD');
+    const icons = [a && a.image && U.ddImg(ver, 'spell', a.image.full), U.cdAsset(p, b && b.abilityIconPath)].filter(Boolean);
+    return { key: K, name, cooldown: cool, cost, desc, maxrank, icons, src: { name: nS, cooldown: cS, cost: coS, desc: dS } };
+  }).filter(s => s && s.name);
+
+  const pa = dd && dd.passive, pb = cd && cd.passive;
+  let passive = null;
+  if (pa || pb) {
+    const [name, nS] = prefer('패시브 이름', pa && pa.name, 'DD', pb && pb.name, 'CD');
+    const [desc] = prefer('패시브 설명', strip(pa && pa.description), 'DD', strip(pb && pb.description), 'CD');
+    const icons = [pa && pa.image && U.ddImg(ver, 'passive', pa.image.full), U.cdAsset(p, pb && pb.abilityIconPath)].filter(Boolean);
+    if (name) passive = { key: 'P', name, desc, icons, src: { name: nS } };
+  }
+
+  const skins = new Map();
+  for (const s of (dd && dd.skins) || []) {
+    skins.set(+s.id, { id: +s.id, num: s.num, base: s.num === 0, name: (s.num === 0 || s.name === 'default') ? c.name : s.name, src: 'DD', imgs: [U.ddLoading(c.id, s.num)] });
+  }
+  for (const s of (cd && cd.skins) || []) {
+    const id = +s.id; let m = skins.get(id);
+    if (!m) { m = { id, num: id % 1000, base: !!s.isBase, name: s.isBase ? c.name : s.name, src: 'CD', imgs: [] }; skins.set(id, m); if (dd) bump('CD', '스킨'); }
+    const img = U.cdAsset(p, s.loadScreenPath || s.tilePath || s.splashPath);
+    if (img) m.imgs.push(img);
+    if (s.rarity) m.rarity = RARITY[s.rarity] || null;
+    m.legacy = !!s.isLegacy;
+  }
+  const damageType = cd && cd.tacticalInfo ? DMG[cd.tacticalInfo.damageType] || null : null;
+  return { key: c.key, champ: c, lore, loreSrc, spells, passive, skins: [...skins.values()].filter(s => s.name), damageType };
+}
+
+async function loadDetail(c) {
+  const k = c.key;
+  if (S.details.has(k)) return S.details.get(k);
+  if (S.pending.has(k)) return S.pending.get(k);
+  const ver = S.dd, p = S.cdPath;
+  const job = (async () => {
+    const [a, b] = await Promise.allSettled([
+      c.ddOk ? getJSON(U.ddDetail(ver, c.id)) : Promise.reject(new Error('no dd')),
+      c.cdOk ? getJSON(U.cdDetail(p, k)) : Promise.reject(new Error('no cd')),
+    ]);
+    const dd = a.status === 'fulfilled' && a.value.data ? a.value.data[c.id] : null;
+    const cd = b.status === 'fulfilled' ? b.value : null;
+    if (!dd && !cd) { S.detailFail++; throw new Error('detail load failed: ' + c.id); }
+    if (ver !== S.dd) throw new Error('stale');          // 로딩 중 패치가 바뀌면 폐기
+    const d = mergeDetail(c, dd, cd, ver, p);
+    S.details.set(k, d); S.detailFail = 0;
+    recordSpellSnapshot(d);
+    return d;
+  })();
+  S.pending.set(k, job);
+  try { return await job; } finally { S.pending.delete(k); }
+}
+function prefetch(n = CFG.PREFETCH) {
+  const pool = S.champs.filter(c => !S.details.has(c.key) && !S.pending.has(c.key));
+  shuffle(pool).slice(0, n).forEach(c => loadDetail(c).catch(() => {}));
+}
+
+/* =====================================================================
+ *  4) 패치 변경 감지 (스냅샷 비교)
+ * ===================================================================== */
+const STATS = {
+  hp: '기본 체력', hpperlevel: '레벨당 체력', mp: '기본 마나', armor: '기본 방어력', spellblock: '기본 마법 저항력',
+  movespeed: '기본 이동 속도', attackrange: '기본 사거리', attackdamage: '기본 공격력', attackspeed: '기본 공격 속도',
+  hpregen: '기본 체력 재생', attackdamageperlevel: '레벨당 공격력', armorperlevel: '레벨당 방어력',
+};
+function statsHash(champs) {
+  return hash(JSON.stringify(champs.map(c => [c.key, c.name, c.title, c.stats && Object.keys(STATS).map(k => c.stats[k])])));
+}
+function makeSnap(ver, h, champs) {
+  const stats = {};
+  for (const c of champs) if (c.stats) { stats[c.key] = {}; for (const k in STATS) stats[c.key][k] = c.stats[k]; }
+  return { version: ver, hash: h, stats, names: champs.map(c => c.key) };
+}
+function diffSnap(prev, champs, toVer) {
+  const out = [];
+  for (const c of champs) {
+    const o = prev.stats[c.key];
+    if (!o) { if (prev.names && !prev.names.includes(c.key)) out.push({ key: c.key, field: 'new', label: '신규 챔피언', old: null, new: c.name }); continue; }
+    if (!c.stats) continue;
+    for (const k in STATS) {
+      const a = o[k], b = c.stats[k];
+      if (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) > 1e-9)
+        out.push({ key: c.key, field: 'stats.' + k, label: STATS[k], old: a, new: b });
+    }
+  }
+  return out;
+}
+function addChanges(fromVer, toVer, list) {
+  if (!list.length) return;
+  let D = store.get('lastDiff', null);
+  if (!D || D.to !== toVer) D = { from: fromVer, to: toVer, changes: [], at: Date.now() };
+  for (const ch of list) {
+    const i = D.changes.findIndex(x => x.key === ch.key && x.field === ch.field);
+    if (i >= 0) D.changes[i] = ch; else D.changes.push(ch);
+  }
+  store.set('lastDiff', D);
+}
+/** 상세(스킬 쿨타임·이름)는 불러올 때마다 이전 버전 기록과 비교 */
+function recordSpellSnapshot(d) {
+  const snap = store.get('spellSnap', {});
+  const cur = { v: S.dd, s: {} };
+  for (const s of d.spells) cur.s[s.key] = { n: s.name, cd: s.cooldown };
+  const old = snap[d.key];
+  if (old && old.v !== S.dd) {
+    const ch = [];
+    for (const K of SLOTS) {
+      const a = old.s[K], b = cur.s[K];
+      if (!a || !b) continue;
+      if (JSON.stringify(a.cd) !== JSON.stringify(b.cd) && a.cd && b.cd)
+        ch.push({ key: d.key, field: 'spell.' + K + '.cd', label: `${K} 「${b.n}」 재사용 대기시간`, old: a.cd, new: b.cd });
+      if (a.n !== b.n) ch.push({ key: d.key, field: 'spell.' + K + '.name', label: `${K} 스킬 이름`, old: a.n, new: b.n });
+    }
+    addChanges(old.v, S.dd, ch);
+  }
+  snap[d.key] = cur;
+  store.set('spellSnap', snap);
+}
+
+/* =====================================================================
+ *  5) 전체 로드
+ * ===================================================================== */
+async function loadAll(v, { reason }) {
+  if (S.loading) return;
+  S.loading = true; setDot('busy');
+  try {
+    S.fill = newFill();
+    const ddr = await fetchDdSummary(v);
+    const ver = ddr.ver, dd = ddr.data;
+    const cd = await fetchCdSummary(ver, v.cdLatest);
+    if (!dd && !cd.data) throw new Error('두 데이터 소스 모두 불러오지 못했습니다');
+    const prevVer = S.dd;
+    S.dd = ver; S.latest = v.latest || S.latest; S.cdPath = cd.p; S.cdVersion = v.cdLatest;
+    const champs = mergeSummary(dd, cd.data);
+    const h = statsHash(champs);
+    const prevSnap = store.get('snapshot', null);
+    let changed = 0;
+    if (dd && prevSnap && prevSnap.hash !== h) {
+      const diff = diffSnap(prevSnap, champs, ver);
+      if (diff.length) {
+        const D = store.get('lastDiff', null);
+        if (!D || D.to !== ver) store.set('lastDiff', { from: prevSnap.version, to: ver, changes: diff, at: Date.now() });
+        else addChanges(prevSnap.version, ver, diff);
+      }
+      changed = diff.length;
+    }
+    if (dd) store.set('snapshot', makeSnap(ver, h, champs));   // DD 실패 시 불완전한 스냅샷 저장 금지
+    const oldDetailKeys = [...S.details.keys()];
+    const hashChanged = S.hash && S.hash !== h;
+    S.champs = champs; S.byKey = new Map(champs.map(c => [c.key, c])); S.details = new Map(); S.pending = new Map(); S.hash = h;
+    if (!champs.length) throw new Error('챔피언 데이터가 비어 있습니다');
+    S.ready = true; S.fail = 0; S.loadErr = null; S.detailFail = 0;
+    if (!dd) toast('Data Dragon 접속 실패 — CommunityDragon 데이터만으로 출제합니다 (스탯 문제 제외)');
+    else if (!cd.data) toast('CommunityDragon 접속 실패 — Data Dragon 데이터만으로 출제합니다');
+    if (reason === 'update') {
+      if (hashChanged || prevVer !== ver) toast(`🔄 ${ver} 데이터 적용${changed ? ` · 수치 변경 ${changed}건` : ''} — 문제가 새 수치로 자동 갱신됩니다`);
+      else toast('데이터를 다시 불러왔어요 (변경 없음)');
+      // 예전에 불러온 챔피언 상세를 새 버전으로 다시 받아 스킬 변경도 감지
+      oldDetailKeys.slice(0, 10).forEach(k => { const c = S.byKey.get(k); if (c) loadDetail(c).catch(() => {}); });
+      await revalidateCurrent();
+    } else if (changed) {
+      toast(`지난 방문 이후 패치(${prevSnap.version} → ${ver})로 수치 ${changed}건이 바뀌었어요`);
+    }
+    prefetch();
+    setDot('ok');
+  } catch (e) {
+    console.error(e); S.loadErr = e.message || String(e); setDot('err'); throw e;
+  } finally {
+    S.loading = false; renderHeader(); renderHome(); renderSettings();
+  }
+}
+
+/* =====================================================================
+ *  6) 자동 갱신 스케줄러 (폴링 + 탭 복귀 + 온라인 복귀 + 실패 시 백오프)
+ * ===================================================================== */
+function schedule() {
+  clearTimeout(S.timer);
+  const ms = settings.pollMin * 60000 * Math.min(4, 2 ** S.fail);
+  S.nextCheck = Date.now() + ms;
+  S.timer = setTimeout(() => checkForUpdate(), ms);
+  renderSettings();
+}
+async function checkForUpdate(mode = '') {
+  if (S.loading) return;
+  setDot('busy');
+  try {
+    const v = await resolveVersions();
+    S.lastCheck = Date.now(); S.latest = v.latest || S.latest;
+    const cdHotfix = S.cdPath === 'latest' && v.cdLatest && S.cdVersion && v.cdLatest !== S.cdVersion;
+    if (mode === 'force' || v.dd !== S.dd || cdHotfix) {
+      await loadAll(v, { reason: 'update' });
+    } else {
+      setDot('ok');
+      if (!settings.followLatest && v.latest && v.latest !== S.dd) toast(`새 패치 ${v.latest}가 있어요. 설정에서 '최신 패치 자동 추적'을 켜면 적용됩니다.`);
+      else if (mode === 'manual') toast(`이미 최신 데이터입니다 (${S.dd})`);
+    }
+    S.fail = 0;
+  } catch (e) {
+    S.fail++; setDot('err');
+    if (mode) toast('업데이트 확인 실패 — 네트워크를 확인해 주세요');
+  } finally { schedule(); renderHeader(); }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.ready && Date.now() >= S.nextCheck) checkForUpdate(); });
+window.addEventListener('online', () => { if (S.ready) checkForUpdate(); });
+
+/* =====================================================================
+ *  7) 문제 생성기 (템플릿 기반, AI 미사용)
+ *     모든 문제는 '지금 메모리에 있는 데이터'에서 즉석 생성 → 패치가 바뀌면 자동으로 새 수치로 출제
+ *     각 문제는 deps(의존 데이터)를 기록 → 풀이 중 패치가 바뀌면 값 비교 후 재출제
+ * ===================================================================== */
+const CATS = { face: '얼굴·일러스트', title: '칭호', skill: '스킬', stat: '수치·스탯', skin: '스킨', lore: '스토리', patch: '패치 변경' };
+
+function depValue(key, path) {
+  const c = S.byKey.get(key); if (!c) return '∅';
+  if (path.startsWith('spell:')) {
+    const [, K, f] = path.split(':'); const d = S.details.get(key); if (!d) return '?';
+    const s = K === 'P' ? d.passive : d.spells.find(x => x.key === K);
+    return JSON.stringify(s ? s[f] : null);
+  }
+  return JSON.stringify(path.split('.').reduce((o, k) => o == null ? o : o[k], c));
+}
+function Q(cat, prompt, correct, wrongs, extra = {}) {
+  const labels = [...new Set([correct, ...wrongs].map(String))];
+  if (labels.length < 2) return null;
+  const opts = shuffle(labels.slice(0, extra.max || 4).map(l => ({ label: l, ok: l === String(correct) })));
+  if (!opts.some(o => o.ok)) return null;
+  const q = { cat, prompt, opts, ...extra, version: S.dd };
+  q.depVals = (q.deps || []).map(([k, p]) => depValue(k, p));
+  return q;
+}
+function champDistractors(c, n = 3, pool = S.champs) {
+  const same = pool.filter(x => x.key !== c.key && c.tags && c.tags[0] && x.tags && x.tags[0] === c.tags[0]);
+  const all = pool.filter(x => x.key !== c.key);
+  const src = same.length >= n && Math.random() < 0.6 ? same : all;
+  const out = [];
+  for (const x of shuffle(src)) { if (out.length >= n) break; if (!out.some(o => o.name === x.name)) out.push(x); }
+  return out;
+}
+function niceStep(v) {
+  const a = Math.abs(v);
+  if (a < 1) return 0.025; if (a < 10) return 1; if (a < 30) return 2; if (a < 100) return 5; if (a < 1000) return 25; return 50;
+}
+function numericOptions(v, pool) {
+  const set = new Set([v]);
+  const near = [...new Set(pool.filter(x => typeof x === 'number' && x !== v && x > 0))]
+    .sort((a, b) => Math.abs(a - v) - Math.abs(b - v)).slice(0, 6);
+  for (const x of shuffle(near)) { if (set.size >= 4) break; set.add(x); }
+  const st = niceStep(v); let k = 1;
+  while (set.size < 4 && k < 30) {
+    const c = +((v + st * (Math.random() < 0.5 ? -k : k))).toFixed(3);
+    if (c > 0) set.add(c); k++;
+  }
+  return [...set].filter(x => x !== v);
+}
+function mask(text, c) {
+  let t = text;
+  const names = [c.name, c.alias, c.id, c.name && c.name.replace(/\s/g, '')].filter(Boolean)
+    .concat(c.name && c.name.includes(' ') ? c.name.split(' ').filter(w => w.length >= 2) : []);
+  for (const n of [...new Set(names)].sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(reEsc(n), 'gi'), '○○○');
+  return t;
+}
+const withStats = () => S.champs.filter(c => c.stats);
+async function detailed(pred = () => true) {
+  let list = [...S.details.values()].filter(pred);
+  if (list.length < 4 || Math.random() < 0.5) {
+    const pool = S.champs.filter(c => !S.details.has(c.key));
+    for (let i = 0; i < 2 && pool.length; i++) {
+      try { const d = await loadDetail(pick(pool)); if (pred(d)) { prefetch(2); return d; } } catch (e) {}
+    }
+    list = [...S.details.values()].filter(pred);
+  }
+  prefetch(2);
+  return list.length ? pick(list) : null;
+}
+
+const GENS = [
+  { cat: 'face', w: 3, fn: async () => {
+    const c = pick(S.champs.filter(x => iconUrls(x).length));
+    return Q('face', '이 초상화의 챔피언은?', c.name, champDistractors(c).map(x => x.name), {
+      img: iconUrls(c), imgClass: 'icon', explain: `${c.name} — ${c.title || ''}`, srcs: [c.iconDD ? 'DD' : 'CD'], deps: [[c.key, 'name']], champ: c.key });
+  } },
+  { cat: 'face', w: 2, d: true, fn: async () => {
+    const d = await detailed(x => x.skins.some(s => s.imgs.length));
+    if (!d) return null; const c = d.champ;
+    const skins = d.skins.filter(s => s.imgs.length); const s = pick(skins);
+    const zoom = 1.3 + Math.random() * 1.1, ox = 20 + rand(60), oy = 15 + rand(50);
+    return Q('face', '확대된 일러스트의 챔피언은?', c.name, champDistractors(c).map(x => x.name), {
+      img: s.imgs, imgClass: 'splash', zoom: { s: zoom, x: ox, y: oy }, explain: `「${s.name}」${s.rarity ? ` · ${s.rarity} 등급` : ''}`,
+      srcs: [s.src, s.rarity ? 'CD' : null], deps: [[c.key, 'name']], champ: c.key });
+  } },
+  { cat: 'title', w: 2, fn: async () => {
+    const c = pick(S.champs.filter(x => x.title));
+    return Q('title', `「${c.title}」 칭호를 가진 챔피언은?`, c.name, champDistractors(c).map(x => x.name), {
+      explain: `${c.name} — ${c.title}`, srcs: [c.src.title], deps: [[c.key, 'title']], champ: c.key });
+  } },
+  { cat: 'title', w: 1, fn: async () => {
+    const c = pick(S.champs.filter(x => x.title));
+    const wr = champDistractors(c, 6).filter(x => x.title && x.title !== c.title).map(x => x.title);
+    return Q('title', `${c.name}의 칭호는?`, c.title, wr, { long: true, explain: `${c.name} — ${c.title}`, srcs: [c.src.title], deps: [[c.key, 'title']], champ: c.key });
+  } },
+  { cat: 'skill', w: 2, d: true, fn: async () => {
+    const d = await detailed(x => x.spells.some(s => s.icons.length)); if (!d) return null;
+    const c = d.champ; const pool = [...d.spells, d.passive].filter(s => s && s.icons.length); const s = pick(pool);
+    return Q('skill', '이 스킬 아이콘의 주인은?', c.name, champDistractors(c).map(x => x.name), {
+      img: s.icons, imgClass: 'icon', explain: `${c.name} ${s.key === 'P' ? '패시브' : s.key} 「${s.name}」`, srcs: [s.src.name], deps: [[c.key, `spell:${s.key}:name`]], champ: c.key });
+  } },
+  { cat: 'skill', w: 2, d: true, fn: async () => {
+    const d = await detailed(x => x.spells.length === 4); if (!d) return null;
+    const c = d.champ; const all = [...d.spells, d.passive].filter(Boolean); const s = pick(all);
+    if (all.filter(x => x.name === s.name).length > 1) return null;
+    const lab = k => k === 'P' ? '패시브' : k;
+    return Q('skill', `「${s.name}」은(는) ${c.name}의 어떤 스킬일까요?`, lab(s.key), ['P', 'Q', 'W', 'E', 'R'].filter(k => k !== s.key).map(lab), {
+      max: 5, explain: s.desc ? s.desc.slice(0, 140) + (s.desc.length > 140 ? '…' : '') : '', srcs: [s.src.name], deps: [[c.key, `spell:${s.key}:name`]], champ: c.key });
+  } },
+  { cat: 'skill', w: 1, d: true, fn: async () => {
+    const d = await detailed(x => x.spells.length); if (!d) return null;
+    const c = d.champ; const s = pick(d.spells);
+    if (s.name.includes(c.name)) return null;
+    return Q('skill', `「${s.name}」(${s.key}) 스킬을 가진 챔피언은?`, c.name, champDistractors(c).map(x => x.name), {
+      explain: `${c.name} ${s.key} 「${s.name}」`, srcs: [s.src.name], deps: [[c.key, `spell:${s.key}:name`]], champ: c.key });
+  } },
+  { cat: 'skill', w: 1, d: true, fn: async () => {
+    const d = await detailed(x => x.passive); if (!d) return null;
+    const c = d.champ; if (d.passive.name.includes(c.name)) return null;
+    return Q('skill', `패시브 「${d.passive.name}」의 주인은?`, c.name, champDistractors(c).map(x => x.name), {
+      explain: d.passive.desc ? d.passive.desc.slice(0, 140) + '…' : '', srcs: [d.passive.src.name], deps: [[c.key, 'spell:P:name']], champ: c.key });
+  } },
+  { cat: 'skill', w: 2, d: true, fn: async () => {
+    const d = await detailed(x => x.spells.some(s => s.cooldown && s.cooldown[0] > 0)); if (!d) return null;
+    const c = d.champ; const cands = d.spells.filter(s => s.cooldown && s.cooldown[0] > 0);
+    const s = cands.find(x => x.key === 'R' && Math.random() < 0.5) || pick(cands);
+    const v = s.cooldown[0];
+    const pool = [...S.details.values()].flatMap(x => x.spells.filter(y => y.key === s.key && y.cooldown).map(y => y.cooldown[0]));
+    return Q('skill', `${c.name}의 ${s.key} 「${s.name}」 1레벨 재사용 대기시간은?`, fmt(v) + '초', numericOptions(v, pool).map(x => fmt(x) + '초'), {
+      explain: `레벨별: ${fmtArr(s.cooldown)}초`, srcs: [s.src.cooldown], deps: [[c.key, `spell:${s.key}:cooldown`]], champ: c.key });
+  } },
+  { cat: 'stat', w: 2, fn: async () => {
+    const k = pick(Object.keys(STATS).filter(x => !x.includes('perlevel') || Math.random() < 0.3));
+    const pool = withStats().filter(c => typeof c.stats[k] === 'number' && (k !== 'mp' || c.stats.mp > 0));
+    const chosen = []; const seen = new Set();
+    for (const c of shuffle(pool)) { if (chosen.length >= 4) break; if (!seen.has(c.stats[k])) { seen.add(c.stats[k]); chosen.push(c); } }
+    if (chosen.length < 4) return null;
+    const hi = Math.random() < 0.6; const sorted = [...chosen].sort((a, b) => hi ? b.stats[k] - a.stats[k] : a.stats[k] - b.stats[k]);
+    return Q('stat', `다음 중 ${STATS[k]}이(가) 가장 ${hi ? '높은' : '낮은'} 챔피언은?`, sorted[0].name, sorted.slice(1).map(x => x.name), {
+      explain: sorted.map(x => `${x.name} ${fmt(x.stats[k])}`).join(' · '), srcs: ['DD'], deps: chosen.map(x => [x.key, 'stats.' + k]) });
+  } },
+  { cat: 'stat', w: 2, fn: async () => {
+    const k = pick(['hp', 'armor', 'spellblock', 'movespeed', 'attackrange', 'attackdamage', 'attackspeed', 'hpperlevel']);
+    const pool = withStats().filter(c => typeof c.stats[k] === 'number' && c.stats[k] > 0);
+    const c = pick(pool); const v = c.stats[k];
+    return Q('stat', `${c.name}의 ${STATS[k]}은(는)? (${S.dd} 기준)`, fmt(v), numericOptions(v, pool.map(x => x.stats[k])).map(fmt), {
+      explain: `${c.name} ${STATS[k]} ${fmt(v)}`, srcs: ['DD'], deps: [[c.key, 'stats.' + k]], champ: c.key });
+  } },
+  { cat: 'stat', w: 1, fn: async () => {
+    const freq = {}; S.champs.forEach(c => { const p = c.partype || '없음'; freq[p] = (freq[p] || 0) + 1; });
+    const types = Object.keys(freq).sort((a, b) => freq[b] - freq[a]);
+    if (types.length < 3) return null;
+    const rare = S.champs.filter(c => c.partype && c.partype !== types[0]);
+    const c = Math.random() < 0.6 && rare.length ? pick(rare) : pick(S.champs.filter(x => x.partype));
+    const ans = c.partype || '없음';
+    return Q('stat', `${c.name}이(가) 사용하는 자원은?`, ans, types.filter(t => t !== ans).slice(0, 5).sort(() => Math.random() - .5), {
+      explain: `${c.name} — ${ans}`, srcs: ['DD'], deps: [[c.key, 'partype']], champ: c.key });
+  } },
+  { cat: 'stat', w: 1, fn: async () => {
+    const tag = pick(Object.keys(TAGS));
+    const has = S.champs.filter(c => c.tags && c.tags[0] === tag);
+    const not = S.champs.filter(c => c.tags && c.tags.length && !c.tags.includes(tag));
+    if (!has.length || not.length < 3) return null;
+    const c = pick(has); const wr = shuffle(not).slice(0, 3);
+    return Q('stat', `다음 중 주 역할군이 '${TAGS[tag]}'인 챔피언은?`, c.name, wr.map(x => x.name), {
+      explain: [c, ...wr].map(x => `${x.name}: ${x.tags.map(t => TAGS[t] || t).join('/')}`).join(' · '), srcs: [c.src.tags], deps: [[c.key, 'tags']] });
+  } },
+  { cat: 'stat', w: 1, d: true, fn: async () => {
+    const d = await detailed(x => x.damageType); if (!d) return null;
+    const c = d.champ;
+    return Q('stat', `${c.name}의 주 피해 유형은? (클라이언트 분류)`, d.damageType, ['물리', '마법', '혼합'].filter(x => x !== d.damageType), {
+      max: 3, explain: `${c.name} — ${d.damageType} 피해 (CommunityDragon tacticalInfo)`, srcs: ['CD'], champ: c.key });
+  } },
+  { cat: 'skin', w: 2, d: true, fn: async () => {
+    const d = await detailed(x => x.skins.filter(s => !s.base).length >= 1); if (!d) return null;
+    const c = d.champ; const s = pick(d.skins.filter(x => !x.base));
+    const m = mask(s.name, c);
+    if (!m.includes('○')) return null;   // 스킨 이름에 챔피언 이름이 없는 경우 제외
+    return Q('skin', `「${m}」 스킨의 챔피언은?`, c.name, champDistractors(c).map(x => x.name), {
+      explain: `「${s.name}」${s.rarity ? ` · ${s.rarity} 등급` : ''}${s.legacy ? ' · 레거시' : ''}`, srcs: [s.src, s.rarity ? 'CD' : null], champ: c.key });
+  } },
+  { cat: 'lore', w: 2, fn: async () => {
+    let c, text, src;
+    if (Math.random() < 0.5 || detailBroken()) { c = pick(S.champs.filter(x => x.blurb)); text = strip(c.blurb); src = 'DD'; }
+    else { const d = await detailed(x => x.lore); if (!d) return null; c = d.champ; text = d.lore; src = d.loreSrc; }
+    if (!text) return null;
+    let t = mask(text, c);
+    if (t.length > 220) { const cut = t.slice(0, 220); const i = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('다. ')); t = (i > 80 ? cut.slice(0, i + 1) : cut) + '…'; }
+    return Q('lore', `이 이야기의 주인공은?<div class="mut" style="font-size:15px;font-weight:400;margin-top:10px">“${esc(t)}”</div>`, c.name, champDistractors(c).map(x => x.name), {
+      rawPrompt: true, explain: `${c.name} — ${c.title || ''}`, srcs: [src], champ: c.key });
+  } },
+  { cat: 'patch', w: 3, fn: async () => {
+    const D = store.get('lastDiff', null);
+    if (!D || D.to !== S.dd) return null;
+    const list = D.changes.filter(x => x.field !== 'new' && S.byKey.has(x.key) && (typeof x.old === 'number' || Array.isArray(x.old)));
+    if (!list.length) return null;
+    const ch = pick(list); const c = S.byKey.get(ch.key);
+    const f = v => fmtArr(v);
+    const delta = (o, n, m) => Array.isArray(o) ? o.map((x, i) => +(x + ((n[i] ?? x) - x) * m).toFixed(3)) : +(o + (n - o) * m).toFixed(3);
+    const right = `${f(ch.old)} → ${f(ch.new)}`;
+    const wr = [`${f(ch.old)} → ${f(delta(ch.old, ch.new, -1))}`, `${f(ch.old)} → ${f(delta(ch.old, ch.new, 2))}`, '변경 없음'];
+    return Q('patch', `${D.from} → ${D.to} 패치에서 ${c.name}의 ${ch.label}은(는) 어떻게 바뀌었나요?`, right, wr, {
+      long: true, explain: `실제 변경: ${right}`, srcs: ['DD'], champ: c.key });
+  } },
+];
+const patchAvailable = () => { const D = store.get('lastDiff', null); return !!(D && D.to === S.dd && D.changes.some(x => x.field !== 'new')); };
+
+const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+const detailBroken = () => S.detailFail >= 3 && S.details.size === 0;
+async function makeQuestion(cats) {
+  const usable = g => (g.cat !== 'patch' || patchAvailable()) && !(g.d && detailBroken());
+  let gens = GENS.filter(g => cats.has(g.cat) && usable(g));
+  if (!gens.length) {
+    // 선택한 분야가 모두 상세 데이터가 필요한데 상세 로드가 실패하는 경우 → 요약 데이터만으로 출제
+    gens = GENS.filter(usable);
+    if (gens.length && !makeQuestion._warned) { makeQuestion._warned = true; toast('스킬·스킨 상세 데이터를 받지 못해 다른 분야 문제로 대체합니다'); }
+  }
+  if (!gens.length) return null;
+  const total = gens.reduce((a, g) => a + g.w, 0);
+  const deadline = Date.now() + 20000;
+  for (let tries = 0; tries < 30 && Date.now() < deadline; tries++) {
+    let r = Math.random() * total, g = gens[0];
+    for (const x of gens) { r -= x.w; if (r <= 0) { g = x; break; } }
+    if (g.d && detailBroken()) continue;
+    try { const q = await withTimeout(g.fn(), 8000); if (q && q.opts.length >= 2) return q; }
+    catch (e) { console.warn('[문제 생성 실패]', g.cat, e); }
+  }
+  // 마지막 수단: 요약 데이터만 쓰는 생성기로 한 번 더
+  for (const g of shuffle(GENS.filter(x => !x.d && x.cat !== 'patch'))) {
+    try { const q = await g.fn(); if (q && q.opts.length >= 2) return q; } catch (e) {}
+  }
+  return null;
+}
+
+/** 패치로 데이터가 바뀌면 풀고 있던 문제의 의존 값 검사 → 바뀌었으면 재출제 */
+async function revalidateCurrent() {
+  const G = S.game; if (!G || !G.q || G.answered) return;
+  const q = G.q;
+  const needDetail = (q.deps || []).filter(([, p]) => p.startsWith('spell:')).map(([k]) => S.byKey.get(k)).filter(Boolean);
+  await Promise.all(needDetail.map(c => loadDetail(c).catch(() => {})));
+  const now = (q.deps || []).map(([k, p]) => depValue(k, p));
+  const stale = now.some((v, i) => v !== q.depVals[i]);
+  if (stale) { toast('패치로 이 문제의 수치가 바뀌어 새 문제로 교체했어요'); await nextQuestion(true); }
+  else if (q.version !== S.dd) q.version = S.dd;
+}
+
+/* =====================================================================
+ *  8) 화면
+ * ===================================================================== */
+let selCats = new Set(store.get('cats', ['face', 'title', 'skill', 'stat', 'skin', 'lore']));
+let selCnt = store.get('cnt', 10);
+const best = () => store.get('best', { acc: null, streak: 0 });
+
+function setDot(s) { $('#dot').className = 'dot ' + s; }
+function renderHeader() { $('#verTxt').textContent = S.dd ? `패치 ${S.dd}` : '연결 실패'; }
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 4200);
+}
+function show(id) { ['home', 'quiz', 'result'].forEach(x => $('#' + x).hidden = x !== id); window.scrollTo(0, 0); }
+
+function renderHome() {
+  const pa = S.ready && patchAvailable();
+  if (!pa) selCats.delete('patch');
+  $('#catChips').innerHTML = Object.entries(CATS).map(([k, v]) =>
+    `<button class="chip" data-cat="${k}" aria-pressed="${selCats.has(k)}" ${k === 'patch' && !pa ? 'disabled title="이전 패치와 비교할 데이터가 아직 없어요"' : ''}>${v}</button>`).join('');
+  $('#cntChips').innerHTML = [[10, '10문제'], [20, '20문제'], [0, '무한 모드']].map(([n, l]) =>
+    `<button class="chip" data-cnt="${n}" aria-pressed="${selCnt === n}">${l}</button>`).join('');
+  $('#startBtn').disabled = !S.ready || !selCats.size;
+  const eb = $('#errBox');
+  if (!S.ready && !S.loading && (S.loadErr || ERRORS.length)) {
+    eb.hidden = false;
+    eb.innerHTML = errorHTML('데이터를 불러오지 못했어요') + '<button class="btn" id="retryLoad" style="margin-top:12px">다시 시도</button>';
+  } else eb.hidden = true;
+  const b = best();
+  $('#stBest').textContent = b.acc == null ? '-' : b.acc + '%';
+  $('#stStreak').textContent = b.streak || '-';
+  $('#stChamps').textContent = S.ready ? S.champs.length : '-';
+  $('#homeSub').innerHTML = S.ready
+    ? `패치 <b>${esc(S.dd)}</b> 데이터로 출제합니다. 패치가 바뀌면 문제도 자동으로 바뀌어요.`
+    : (S.loading ? 'Data Dragon + CommunityDragon 데이터를 불러오는 중입니다…' : '데이터를 불러오지 못했어요. 오른쪽 위 버튼에서 다시 시도해 주세요.');
+}
+$('#catChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat]'); if (!b || b.disabled) return;
+  const k = b.dataset.cat; selCats.has(k) ? selCats.delete(k) : selCats.add(k);
+  store.set('cats', [...selCats]); renderHome();
+});
+$('#cntChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-cnt]'); if (!b) return; selCnt = +b.dataset.cnt; store.set('cnt', selCnt); renderHome();
+});
+$('#startBtn').addEventListener('click', startGame);
+$('#errBox').addEventListener('click', e => { if (e.target.closest('#retryLoad')) { ERRORS.length = 0; checkForUpdate('force'); renderHome(); } });
+function errorHTML(title) {
+  const hints = envHints();
+  const recent = ERRORS.slice(-6).reverse();
+  return `<div class="t bad">${esc(title)}</div>
+    ${hints.map(h => `<div style="margin:6px 0">💡 ${esc(h)}</div>`).join('')}
+    ${S.loadErr ? `<div class="mut" style="margin-top:6px">원인: ${esc(S.loadErr)}</div>` : ''}
+    ${recent.length ? `<div class="mut" style="margin-top:8px;font-size:12px;word-break:break-all">${recent.map(r =>
+      `• ${esc(r.kind)} — ${esc(r.url.replace(/^https:\/\//, ''))}`).join('<br>')}</div>` : ''}`;
+}
+$('#brand').addEventListener('click', () => { if (S.game && !confirmLeave()) return; S.game = null; renderHome(); show('home'); });
+function confirmLeave() { return !S.game || S.game.idx === 0 || S.game.done || leaveArmed(); }
+function leaveArmed() { if (leaveArmed.t && Date.now() - leaveArmed.t < 2500) return true; leaveArmed.t = Date.now(); toast('한 번 더 누르면 퀴즈를 그만둡니다'); return false; }
+
+function startGame() {
+  S.game = { cats: new Set(selCats), total: selCnt, idx: 0, score: 0, streak: 0, bestStreak: 0, q: null, answered: false, hist: [], done: false };
+  show('quiz'); nextQuestion();
+}
+async function nextQuestion(replace = false) {
+  const G = S.game; if (!G) return;
+  if (!replace) {
+    if (G.total && G.idx >= G.total) return finish();
+    G.idx++;
+  }
+  G.answered = false;
+  $('#qBody').innerHTML = '<div class="spin"></div>';
+  updateProg();
+  const q = await makeQuestion(G.cats);
+  if (S.game !== G) return;
+  if (!q) {
+    $('#qBody').innerHTML = `<div class="fb" style="border-color:var(--bad)">${errorHTML('문제를 만들지 못했어요')}
+      <div class="mut" style="margin-top:6px">분야를 더 선택하거나 잠시 후 다시 시도해 주세요.</div></div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="retryQ" style="flex:1">다시 시도</button><button class="btn ghost" id="endBtn">끝내기</button></div>`;
+    return;
+  }
+  G.q = q; renderQuestion(q);
+}
+function updateProg() {
+  const G = S.game;
+  $('#qProg').textContent = G.total ? `${G.idx} / ${G.total} · 점수 ${G.score}` : `${G.idx}번째 · 점수 ${G.score} · 연속 ${G.streak}`;
+  $('#qBar').style.width = G.total ? (G.idx / G.total * 100) + '%' : '100%';
+}
+function imgHTML(urls, cls, zoom) {
+  const style = zoom ? `style="transform:scale(${zoom.s.toFixed(2)});transform-origin:${zoom.x}% ${zoom.y}%"` : '';
+  return `<div class="media"><div class="frame ${cls}"><img alt="문제 이미지" ${style} src="${esc(urls[0])}" data-alt='${esc(JSON.stringify(urls.slice(1)))}'></div></div>`;
+}
+function imgFallback(el) {
+  let alt = []; try { alt = JSON.parse(el.dataset.alt || '[]'); } catch (e) {}
+  if (alt.length) { el.dataset.alt = JSON.stringify(alt.slice(1)); el.src = alt[0]; } else { el.onerror = null; el.style.opacity = .2; }
+}
+function renderQuestion(q) {
+  $('#qCat').textContent = CATS[q.cat];
+  const long = q.long || q.opts.some(o => o.label.length > 13);
+  $('#qBody').innerHTML = `
+    <h2>${q.rawPrompt ? q.prompt : esc(q.prompt)}</h2>
+    ${q.img ? imgHTML(q.img, q.imgClass, q.zoom) : ''}
+    <div class="opts ${long ? 'long' : ''}">${q.opts.map((o, i) =>
+      `<button class="opt" data-i="${i}"><span class="k">${i + 1}</span><span>${esc(o.label)}</span></button>`).join('')}</div>
+    <div id="fb"></div>`;
+  const im = $('#qBody .media img');
+  if (im) { im.addEventListener('error', () => imgFallback(im)); if (im.complete && !im.naturalWidth && im.src) imgFallback(im); }
+}
+$('#qBody').addEventListener('click', e => {
+  const b = e.target.closest('.opt'); if (b && !b.disabled) answer(+b.dataset.i);
+  if (e.target.closest('#nextBtn')) nextQuestion();
+  if (e.target.closest('#endBtn')) finish();
+  if (e.target.closest('#retryQ')) nextQuestion(true);
+});
+document.addEventListener('keydown', e => {
+  if ($('#quiz').hidden || !S.game || !S.game.q) return;
+  if (!S.game.answered && /^[1-5]$/.test(e.key)) { const i = +e.key - 1; if (i < S.game.q.opts.length) answer(i); }
+  else if (S.game.answered && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); nextQuestion(); }
+});
+function answer(i) {
+  const G = S.game; if (G.answered) return; G.answered = true;
+  const q = G.q; const ok = q.opts[i].ok;
+  if (ok) { G.score++; G.streak++; G.bestStreak = Math.max(G.bestStreak, G.streak); } else G.streak = 0;
+  G.hist.push({ q, chosen: i, ok });
+  document.querySelectorAll('.opt').forEach((b, j) => { b.disabled = true; if (q.opts[j].ok) b.classList.add('ok'); else if (j === i) b.classList.add('bad'); });
+  if (q.zoom) { const im = document.querySelector('.media img'); if (im) im.style.transform = 'scale(1)'; }
+  const right = q.opts.find(o => o.ok).label;
+  const srcs = [...new Set((q.srcs || []).filter(Boolean))];
+  const filled = srcs.length > 1 ? '<span class="src fill">두 소스 병합</span>' : '';
+  const last = G.total && G.idx >= G.total;
+  $('#fb').innerHTML = `<div class="fb">
+      <div class="t ${ok ? 'ok' : 'bad'}">${ok ? '정답!' : '오답 — 정답: ' + esc(right)}</div>
+      <div>${esc(q.explain || '')}</div>
+      <div>${srcs.map(srcTag).join('')}${filled}</div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="nextBtn" style="flex:1">${last ? '결과 보기' : '다음 문제'}</button>
+      ${G.total ? '' : '<button class="btn ghost" id="endBtn">그만하기</button>'}
+    </div>`;
+  updateProg();
+  const nb = $('#nextBtn'); if (nb && matchMedia('(hover:hover)').matches) nb.focus();
+  nb && nb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function finish() {
+  const G = S.game; if (!G) return; G.done = true;
+  if (!G.hist.length) { S.game = null; renderHome(); show('home'); return; }
+  const n = G.hist.length; const acc = n ? Math.round(G.score / n * 100) : 0;
+  const b = best(); let newBest = false;
+  if (n >= 10 && (b.acc == null || acc > b.acc)) { b.acc = acc; newBest = true; }
+  if (G.bestStreak > (b.streak || 0)) { b.streak = G.bestStreak; newBest = true; }
+  store.set('best', b);
+  const wrong = G.hist.filter(h => !h.ok);
+  $('#result').innerHTML = `
+    <h1>결과</h1>
+    <p class="sub">패치 ${esc(S.dd)} 기준${newBest ? ' · 🏆 최고 기록 갱신!' : ''}</p>
+    <div class="stats">
+      <div class="stat"><b>${G.score}/${n}</b><span>정답</span></div>
+      <div class="stat"><b>${acc}%</b><span>정답률</span></div>
+      <div class="stat"><b>${G.bestStreak}</b><span>최고 연속</span></div>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn primary" style="flex:1" id="againBtn">다시 하기</button>
+      <button class="btn ghost" id="homeBtn">처음으로</button>
+    </div>
+    ${wrong.length ? `<div class="label">틀린 문제 복습</div><div class="review">${wrong.map(h =>
+      `<div><b>${h.q.rawPrompt ? h.q.prompt.replace(/<div[\s\S]*$/, '') : esc(h.q.prompt)}</b><br>
+       <span class="down">내 답: ${esc(h.q.opts[h.chosen].label)}</span> · <span class="up">정답: ${esc(h.q.opts.find(o => o.ok).label)}</span><br>
+       <span class="mut">${esc(h.q.explain || '')}</span></div>`).join('')}</div>` : ''}`;
+  show('result');
+  $('#againBtn').onclick = startGame;
+  $('#homeBtn').onclick = () => { S.game = null; renderHome(); show('home'); };
+}
+
+/* ---------- 설정 시트 ---------- */
+function renderSettings() {
+  if (!$('#ov').classList.contains('open')) return;
+  $('#pinLabel').textContent = `${CFG.BASE_VERSION} 고정`;
+  document.querySelectorAll('input[name=track]').forEach(r => r.checked = (r.value === 'latest') === settings.followLatest);
+  $('#pollSel').value = String(settings.pollMin);
+  $('#kv').innerHTML = `
+    <dt>사용 중 (DD)</dt><dd>${esc(S.dd || '-')}</dd>
+    <dt>최신 DD</dt><dd>${esc(S.latest || '-')}</dd>
+    <dt>CDragon 경로</dt><dd>/${esc(S.cdPath || '-')}/ ${S.cdVersion ? '(' + esc(S.cdVersion) + ')' : ''}</dd>
+    <dt>챔피언</dt><dd>${S.champs.length}명 · 상세 로드 ${S.details.size}명</dd>
+    <dt>마지막 확인</dt><dd>${timeStr(S.lastCheck)}</dd>
+    <dt>다음 확인</dt><dd>${timeStr(S.nextCheck)}${S.fail ? ` (실패 ${S.fail}회 → 간격 늘림)` : ''}</dd>`;
+  const F = S.fill || newFill();
+  const fl = o => Object.entries(o).map(([k, v]) => `${esc(k)} ${v}`).join(', ') || '없음';
+  $('#fillInfo').innerHTML = `
+    <div>• DD에 비어 있어 <b style="color:#c9a6ff">CommunityDragon</b>으로 채움: ${fl(F.CD)}</div>
+    <div>• CD에 비어 있어 <b style="color:#8cc3ff">Data Dragon</b>으로 채움: ${fl(F.DD)}</div>
+    <div>• CD에만 있는 챔피언: ${F.cdOnlyChamps}명 · DD에만 있는 챔피언: ${F.ddOnlyChamps}명</div>`;
+  const D = store.get('lastDiff', null);
+  $('#chgInfo').innerHTML = D && D.changes.length
+    ? `<div class="mut" style="font-size:13px;margin-bottom:6px">${esc(D.from)} → ${esc(D.to)} · ${D.changes.length}건</div><div class="changes">${D.changes.slice(0, 80).map(ch => {
+        const c = S.byKey.get(ch.key); const nm = c ? c.name : ch.key;
+        if (ch.field === 'new') return `<div>🆕 ${esc(ch.new)}</div>`;
+        const dir = typeof ch.old === 'number' ? (ch.new > ch.old ? 'up' : 'down') : '';
+        return `<div>${esc(nm)} · ${esc(ch.label)}: ${esc(fmtArr(ch.old))} → <span class="${dir}">${esc(fmtArr(ch.new))}</span></div>`;
+      }).join('')}</div>`
+    : '<div class="mut" style="font-size:14px">아직 비교할 이전 패치 기록이 없어요. 다음 패치가 나오면 여기와 "패치 변경" 문제에 표시됩니다.</div>';
+}
+$('#verBtn').onclick = () => { $('#ov').classList.add('open'); renderSettings(); };
+$('#ovClose').onclick = () => $('#ov').classList.remove('open');
+$('#ov').addEventListener('click', e => { if (e.target.id === 'ov') $('#ov').classList.remove('open'); });
+document.querySelectorAll('input[name=track]').forEach(r => r.onchange = () => {
+  settings.followLatest = r.value === 'latest'; saveSettings(); checkForUpdate('manual');
+});
+$('#pollSel').onchange = e => { settings.pollMin = +e.target.value; saveSettings(); schedule(); toast(`${settings.pollMin}분마다 새 패치를 확인합니다`); };
+$('#checkNow').onclick = () => checkForUpdate('manual');
+$('#forceReload').onclick = () => checkForUpdate('force');
+
+/* ---------- 시작 ---------- */
+(async function init() {
+  renderHome(); setDot('busy');
+  try { const v = await resolveVersions(); S.lastCheck = Date.now(); await loadAll(v, { reason: 'init' }); }
+  catch (e) { toast('데이터를 불러오지 못했어요. 잠시 후 자동으로 다시 시도합니다.'); S.fail++; }
+  schedule();
+})();
+</script>
+</body>
+</html>
