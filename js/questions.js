@@ -43,6 +43,14 @@ const getPath = (o, path) => path.split('.').reduce((x, k) => x == null ? x : x[
 const sigC = (k, path) => { const c = S.byKey.get(k); return JSON.stringify(c ? getPath(c, path) : '∅'); };
 const sigS = (k, K, f) => { const d = S.details.get(k); if (!d) return '?'; const s = K === 'P' ? d.passive : d.spells.find(x => x.key === K); return JSON.stringify(s ? s[f] : null); };
 const sigI = (id, f) => { const I = S.data.items; if (!I) return '?'; const m = I.byId.get(id); return JSON.stringify(m ? getPath(m, f) : null); };
+/** 충전식 소환사 주문(강타 등) 안내 문구 */
+const chargeTag = s => s.charge ? `(${s.charge.max ? '최대 ' + s.charge.max + '회 ' : ''}충전식)` : '';
+const chargeNote = s => {
+  const c = s.charge; if (!c) return '';
+  if (c.max && c.rech && c.rech !== s.cd) return `※ 「${s.name}」는 최대 ${c.max}회까지 충전되는 주문이에요. ${sec(s.cd)}는 연속으로 쓸 때 사이에 필요한 재사용 대기시간이고, 쓴 충전 1회는 ${sec(c.rech)} 뒤에 다시 채워집니다.`;
+  if (c.max && c.rech) return `※ 「${s.name}」는 최대 ${c.max}회까지 충전되는 주문이에요. 충전 1회가 ${sec(c.rech)}마다 채워집니다.`;
+  return `※ 「${s.name}」는 여러 번 충전되는 주문이라 위 재사용 대기시간 하나로 모든 상황을 설명할 수 없어요. 정확한 충전 횟수와 시간은 주문 설명을 확인하세요.`;
+};
 const sigM = id => { const M = S.data.summ; if (!M) return '?'; const s = M.find(x => x.id === id); return JSON.stringify(s ? [s.name, s.cd] : null); };
 const sigR = id => { const R = S.data.runes; if (!R) return '?'; const r = R.byId.get(id); return JSON.stringify(r ? [r.name, r.tree, r.slot] : null); };
 
@@ -555,36 +563,36 @@ gen('item', 5, 1, async () => {
 const summOpt = { need: 'summ' };
 gen('summ', 1, 3, async () => {
   const M = await ensure('summ'); const s = pick(M);
-  return Q('summ', `소환사 주문 「${s.name}」의 재사용 대기시간은 몇 초일까요?`, sec(s.cd), numericOptions(s.cd, M.map(x => x.cd), { step: 15 }).map(sec), {
+  return Q('summ', `소환사 주문 「${s.name}」${chargeTag(s) ? ' ' + chargeTag(s) : ''}의 ${s.charge && s.charge.max && s.charge.rech && s.charge.rech !== s.cd ? '연속 사용 사이 ' : ''}재사용 대기시간은 몇 초일까요?`, sec(s.cd), numericOptions(s.cd, M.map(x => x.cd), { step: 15 }).map(sec), {
     img: s.icons, imgClass: 'icon sm', srcs: [s.src.cd], sig: () => sigM(s.id),
-    explain: ex(`「${s.name}」: ${sec(s.cd)} = ${mmss(s.cd)}`, trunc(s.desc, 160), `💡 상대가 이 주문을 쓰면 ${mmss(s.cd)} 동안은 다시 못 씁니다. 그 시간이 공격적으로 들어갈 기회예요.`) });
+    explain: ex(`「${s.name}」: ${sec(s.cd)} = ${mmss(s.cd)}`, chargeNote(s), trunc(s.desc, 160), `💡 상대가 이 주문을 쓰면 ${mmss(s.cd)} 동안은 다시 못 씁니다. 그 시간이 공격적으로 들어갈 기회예요.`) });
 }, summOpt);
 gen('summ', 1, 2, async () => {
   const M = await ensure('summ'); if (M.length < OPTS) return null; const s = pick(M.filter(x => x.desc));
   return Q('summ', `다음 설명에 해당하는 소환사 주문은 무엇일까요?<div class="quote">“${esc(trunc(mask(s.desc, [s.name]), 200))}”</div>`, s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
-    raw: true, srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`정답: 「${s.name}」 (재사용 대기시간 ${sec(s.cd)})`, s.desc) });
+    raw: true, srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`정답: 「${s.name}」 (재사용 대기시간 ${sec(s.cd)})`, chargeNote(s), s.desc) });
 }, summOpt);
 gen('summ', 1, 1, async () => {
   const M = await ensure('summ'); const s = pick(M.filter(x => x.icons.length));
   return Q('summ', '이 아이콘은 어떤 소환사 주문일까요?', s.name, shuffle(M.filter(x => x.id !== s.id)).map(x => x.name), {
-    img: s.icons, imgClass: 'icon', srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`「${s.name}」 — 재사용 대기시간 ${sec(s.cd)}`, trunc(s.desc, 140)) });
+    img: s.icons, imgClass: 'icon', srcs: [s.src.name], sig: () => sigM(s.id), explain: ex(`「${s.name}」 — 재사용 대기시간 ${sec(s.cd)}`, chargeNote(s), trunc(s.desc, 140)) });
 }, summOpt);
 gen('summ', 2, 2, async () => {
   const M = await ensure('summ'); const cs = [], seen = new Set();
-  for (const s of shuffle(M)) { if (seen.has(s.cd)) continue; seen.add(s.cd); cs.push(s); if (cs.length >= OPTS) break; }
+  for (const s of shuffle(M)) { if (s.charge && !(s.charge.max && s.charge.rech)) continue; if (seen.has(s.cd)) continue; seen.add(s.cd); cs.push(s); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null; const lo = Math.random() < 0.5; cs.sort((a, b) => lo ? a.cd - b.cd : b.cd - a.cd);
-  return Q('summ', `다음 중 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 소환사 주문은 무엇일까요?`, cs[0].name, cs.slice(1).map(x => x.name), {
-    srcs: ['DD'], sig: () => cs.map(s => sigM(s.id)).join(), explain: ex(...cs.map((s, i) => `${i + 1}. ${s.name} ${sec(s.cd)} (${mmss(s.cd)})`)) });
+  return Q('summ', `다음 중 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 소환사 주문은 무엇일까요?${cs.some(x => x.charge) ? ' (충전식 주문은 연속 사용 사이의 대기시간 기준)' : ''}`, cs[0].name, cs.slice(1).map(x => x.name), {
+    srcs: ['DD'], sig: () => cs.map(s => sigM(s.id)).join(), explain: ex(...cs.map((s, i) => `${i + 1}. ${s.name} ${sec(s.cd)} (${mmss(s.cd)})`), ...cs.map(chargeNote)) });
 }, summOpt);
 gen('summ', 2, 2, async () => {
-  const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60)), t = 2 + rand(12), sAt = rand(4) * 15, at = t * 60 + sAt, back = at + s.cd;
+  const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60 && !x.charge)), t = 2 + rand(12), sAt = rand(4) * 15, at = t * 60 + sAt, back = at + s.cd;
   return Q('summ', `상대가 ${mmss(at)}에 「${s.name}」${josa(s.name, '을')} 썼습니다. 소환사 주문 가속이 없다면 다시 쓸 수 있는 가장 빠른 시각은 언제일까요?`, mmss(back),
     [back - 30, back + 30, back - 60, back + 60, at + Math.round(s.cd / 2)].map(mmss), {
     srcs: [s.src.cd], sig: () => sigM(s.id),
     explain: ex(`① 「${s.name}」 쿨타임 ${sec(s.cd)} = ${mmss(s.cd)}`, `② ${mmss(at)} + ${mmss(s.cd)} = ${mmss(back)}`, `💡 채팅에 "${s.name} ${mmss(back).replace('분 ', ':').replace('초', '')}"처럼 돌아오는 시각을 적어 두면 팀 전체가 교전 타이밍을 맞출 수 있어요.`) });
 }, summOpt);
 gen('summ', 3, 2, async () => {
-  const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60)), t = 3 + rand(15), sAt = rand(60), at = t * 60 + sAt;
+  const M = await ensure('summ'); const s = pick(M.filter(x => x.cd >= 60 && !x.charge)), t = 3 + rand(15), sAt = rand(60), at = t * 60 + sAt;
   const passed = 20 + rand(Math.max(1, Math.floor(s.cd) - 40)), now = at + passed, left = s.cd - passed;
   return Q('summ', `상대 정글러가 ${mmss(at)}에 「${s.name}」${josa(s.name, '을')} 썼고, 지금은 ${mmss(now)}입니다. 다시 쓰기까지 몇 초 남았나요?`, sec(left),
     numericOptions(left, [passed, s.cd - left, left + 15, left - 15, left + 30], { step: 5 }).map(sec), {

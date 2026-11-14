@@ -474,6 +474,13 @@ function mergeItems(dd, cd, ver, p) {
   const byName = new Map(list.map(x => [x.name, x]));
   return { byId: by, list, goldPer, byName };
 }
+/** 설명 글에서 충전식 주문 정보(최대 횟수, 충전 시간)를 읽는다. 못 읽은 값은 null */
+function parseCharge(desc) {
+  const t = String(desc || ''); if (!/충전/.test(t)) return null;
+  const mx = /(?:최대\s*)?(\d+)\s*(?:회|번|개)(?:까지|의)?[^.。]{0,12}충전|충전[^.。]{0,12}?(?:최대\s*)?(\d+)\s*(?:회|번|개)/.exec(t);
+  const rc = /(\d+(?:\.\d+)?)\s*초[^.。]{0,10}(?:마다|걸려|후에?)[^.。]{0,10}충전|충전[^.。]{0,25}?(\d+(?:\.\d+)?)\s*초/.exec(t);
+  return { max: mx ? +(mx[1] || mx[2]) : null, rech: rc ? +(rc[1] || rc[2]) : null };
+}
 function mergeSumm(dd, cd, ver, p) {
   const by = new Map();
   if (dd && dd.data) for (const s of Object.values(dd.data)) {
@@ -489,6 +496,7 @@ function mergeSumm(dd, cd, ver, p) {
     if (!m.modes.length && Array.isArray(s.gameModes)) m.modes = s.gameModes;
     const ic = U.cdAsset(p, s.iconPath); if (ic) m.icons.push(ic);
   }
+  for (const m of by.values()) m.charge = parseCharge(m.desc);
   return [...by.values()].filter(s => s.name && s.cd > 0 && s.modes.includes('CLASSIC'));
 }
 function mergeRunes(dd, perks, styles, ver, p) {
