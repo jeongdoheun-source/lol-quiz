@@ -99,6 +99,7 @@ const U = {
   cdData: (p, f) => `${U.cdBase(p)}/${CFG.LANG_CD}/v1/${f}`,
   cdSummary: p => U.cdData(p, 'champion-summary.json'),
   cdDetail: (p, k) => U.cdData(p, `champions/${k}.json`),
+  cdGameBin: (p, alias) => `${CFG.CD}/${p}/game/data/characters/${alias}/${alias}.bin.json`,
   cdAsset: (p, path) => path ? `${U.cdBase(p)}/default/${String(path).replace(/^\/?lol-game-data\/assets\//i, '').toLowerCase()}` : null,
 };
 
@@ -110,7 +111,7 @@ const S = {
   hash: null, fill: null, lastCheck: 0, nextCheck: 0, fail: 0,
   loading: false, ready: false, game: null, timer: null, detailFail: 0, loadErr: null,
 };
-const newFill = () => ({ CD: {}, DD: {}, cdOnlyChamps: 0, ddOnlyChamps: 0 });
+const newFill = () => ({ CD: {}, DD: {}, CDG: {}, cdOnlyChamps: 0, ddOnlyChamps: 0 });
 function bump(src, field) { if (S.fill) S.fill[src][field] = (S.fill[src][field] || 0) + 1; }
 function prefer(field, a, aSrc, b, bSrc) {
   if (!isEmpty(a)) return [a, aSrc];
@@ -204,9 +205,9 @@ function mergeDetail(c, dd, cd, ver, p) {
     if (!a && !b) return null;
     const maxrank = (a && a.maxrank) || (b && b.maxLevel) || (K === 'R' ? 3 : 5);
     const [name, nS] = prefer('스킬 이름', a && a.name, 'DD', b && b.name, 'CD');
-    const [cool, cS] = prefer('재사용 대기시간', cleanArr(a && a.cooldown, maxrank), 'DD', cleanArr(b && b.cooldownCoefficients, maxrank), 'CD');
-    const [cost, coS] = prefer('소모값', cleanArr(a && a.cost, maxrank), 'DD', cleanArr(b && b.costCoefficients, maxrank), 'CD');
-    const [range, rS] = prefer('사거리', cleanArr(a && a.range, maxrank), 'DD', cleanArr(b && b.range, maxrank), 'CD');
+    const [cool, cS] = prefer('재사용 대기시간', cleanArr(b && b.cooldownCoefficients, maxrank), 'CD', cleanArr(a && a.cooldown, maxrank), 'DD');
+    const [cost, coS] = prefer('소모값', cleanArr(b && b.costCoefficients, maxrank), 'CD', cleanArr(a && a.cost, maxrank), 'DD');
+    const [range, rS] = prefer('사거리', cleanArr(b && b.range, maxrank), 'CD', cleanArr(a && a.range, maxrank), 'DD');
     const [desc, dS] = prefer('스킬 설명', strip(a && a.description), 'DD', strip(b && (b.description || b.dynamicDescription)), 'CD');
     const costText = a ? String(a.costType || '') + String(a.resource || '') : '';
     const manaCost = isMana && a && /마나|mana|cost/i.test(costText) && !/체력|기력|분노|없음/.test(costText) ? cost : null;
@@ -249,7 +250,6 @@ async function loadDetail(c) {
     if (ver !== S.dd) throw new Error('stale');
     const d = mergeDetail(c, dd, cd, ver, p);
     S.details.set(k, d); S.detailFail = 0;
-    recordSpellSnapshot(d);
     return d;
   })();
   S.pending.set(k, job);
@@ -260,6 +260,70 @@ function prefetch(n = CFG.PREFETCH) {
   shuffle(pool).slice(0, n).forEach(c => loadDetail(c).catch(() => {}));
 }
 const detailBroken = () => S.detailFail >= 3 && S.details.size === 0;
+
+
+/* =====================================================================
+ *  실제 게임 데이터 (CommunityDragon game/data/characters/{alias}/{alias}.bin.json)
+ *  Data Dragon의 스킬 수치는 갱신이 늦거나 틀린 경우가 있어서,
+ *  쿨타임·마나·사거리는 게임 파일 값을 1순위로 씁니다.
+ *  배열 규칙: cooldownTime·castRange는 [1]부터, mana는 [0]부터가 스킬 1레벨
+ * ===================================================================== */
+function parseGameBin(bin) {
+  if (!bin || typeof bin !== 'object') return null;
+  const entries = Object.entries(bin);
+  const rootE = entries.find(([k]) => /\/CharacterRecords\/Root$/i.test(k));
+  const rec = rootE ? rootE[1] : (entries.find(([, v]) => v && Array.isArray(v.spellNames)) || [])[1];
+  if (!rec || !Array.isArray(rec.spellNames)) return null;
+  const byScript = new Map(), byTail = new Map();
+  for (const [k, v] of entries) if (v && v.mSpell) { if (v.mScriptName) byScript.set(v.mScriptName, v.mSpell); byTail.set(k.split('/').pop(), v.mSpell); }
+  const spells = rec.spellNames.slice(0, 4).map((nm, i) => {
+    const sp = byScript.get(nm) || byTail.get(nm) || byTail.get(String(nm).split('/').pop());
+    if (!sp) return null;
+    const arr = x => Array.isArray(x) ? x.map(Number) : null;
+    return { key: SLOTS[i], cd: arr(sp.cooldownTime), mana: arr(sp.mana), range: arr(sp.castRange),
+      ammo: !!(sp.mMaxAmmo > 1 || Array.isArray(sp.mAmmoRechargeTime) || sp.mAmmoRechargeTime > 0) };
+  });
+  return { spells };
+}
+async function applyGame(d) {
+  if (!d || d.gameTried) return d;
+  if (d.gameJob) return d.gameJob;
+  const c = d.champ, p = S.cdPath, ver = S.dd, alias = String(c.alias || c.id || '').toLowerCase();
+  d.gameJob = (async () => {
+    try {
+      const g = parseGameBin(await getJSON(U.cdGameBin(p, alias), { timeout: 20000 }));
+      if (g && ver === S.dd) {
+        d.game = true;
+        const isMana = /마나|mana/i.test(c.partype || '');
+        for (const gs of g.spells) {
+          if (!gs) continue;
+          const s = d.spells.find(x => x.key === gs.key); if (!s) continue;
+          const m = s.maxrank;
+          s.ammo = gs.ammo;
+          const cd = gs.cd && gs.cd.length > m ? gs.cd.slice(1, m + 1) : null;
+          if (cd && cd.some(x => x > 0)) {
+            if (s.cooldown && JSON.stringify(s.cooldown) !== JSON.stringify(cd)) { s.cooldownWas = { v: s.cooldown, src: s.src.cooldown }; bump('CDG', '스킬 쿨타임'); }
+            s.cooldown = cd; s.src.cooldown = 'CDG';
+          }
+          const mana = gs.mana && gs.mana.length >= m ? gs.mana.slice(0, m) : null;
+          if (isMana && mana && mana.some(x => x > 0)) {
+            if (s.manaCost && JSON.stringify(s.manaCost) !== JSON.stringify(mana)) bump('CDG', '마나 소모량');
+            s.manaCost = mana; s.cost = mana; s.src.cost = 'CDG';
+          }
+          const rg = gs.range && gs.range.length > m ? gs.range.slice(1, m + 1) : null;
+          if (rg && rg[0] > 0) {
+            if (s.range && JSON.stringify(s.range) !== JSON.stringify(rg)) bump('CDG', '스킬 사거리');
+            s.range = rg; s.src.range = 'CDG';
+          }
+        }
+      }
+    } catch (e) { /* 게임 데이터를 못 받으면 CD 챔피언 JSON → DD 순서로 남은 값 사용 */ }
+    d.gameTried = true;
+    if (ver === S.dd) recordSpellSnapshot(d);
+    return d;
+  })();
+  return d.gameJob;
+}
 
 /* =====================================================================
  *  아이템 · 소환사 주문 · 룬 (DD + CD 병합)
@@ -359,7 +423,7 @@ function mergeSumm(dd, cd, ver, p) {
     if (!m) { m = { id: +s.id, modes: [], icons: [], src: {} }; by.set(m.id, m); }
     if (isEmpty(m.name) && s.name) { m.name = s.name; m.src.name = 'CD'; if (dd) bump('CD', '소환사 주문 이름'); }
     if (isEmpty(m.desc) && s.description) { m.desc = strip(s.description); if (dd) bump('CD', '소환사 주문 설명'); }
-    if (!(m.cd > 0) && +s.cooldown > 0) { m.cd = +s.cooldown; m.src.cd = 'CD'; if (dd) bump('CD', '소환사 주문 쿨타임'); }
+    if (+s.cooldown > 0 && m.cd !== +s.cooldown) { if (m.cd > 0) bump('CD', '소환사 주문 쿨타임(DD와 다름)'); else if (dd) bump('CD', '소환사 주문 쿨타임'); m.cd = +s.cooldown; m.src.cd = 'CD'; }
     if (!m.modes.length && Array.isArray(s.gameModes)) m.modes = s.gameModes;
     const ic = U.cdAsset(p, s.iconPath); if (ic) m.icons.push(ic);
   }
@@ -473,10 +537,10 @@ function addChanges(fromVer, toVer, list) {
 }
 function recordSpellSnapshot(d) {
   const snap = store.get('spellSnap', {});
-  const cur = { v: S.dd, s: {} };
+  const cur = { v: S.dd, g: !!d.game, s: {} };
   for (const s of d.spells) cur.s[s.key] = { n: s.name, cd: s.cooldown, mc: s.manaCost };
   const old = snap[d.key];
-  if (old && old.v !== S.dd) {
+  if (old && old.v !== S.dd && !!old.g === cur.g) {
     const ch = [], nm = d.champ.name;
     for (const K of SLOTS) {
       const a = old.s[K], b = cur.s[K]; if (!a || !b) continue;

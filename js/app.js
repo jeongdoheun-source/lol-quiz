@@ -2,7 +2,7 @@
 /* =====================================================================
  *  app.js — 화면
  * ===================================================================== */
-const srcTag = s => s === 'DD' ? `<span class="src dd">Data Dragon ${esc(S.dd)}</span>` : s === 'CD' ? `<span class="src cd">CommunityDragon ${esc(S.cdPath)}</span>` : '';
+const srcTag = s => s === 'DD' ? `<span class="src dd">Data Dragon ${esc(S.dd)}</span>` : s === 'CD' ? `<span class="src cd">CommunityDragon ${esc(S.cdPath)}</span>` : s === 'CDG' ? `<span class="src cd">CommunityDragon 게임 데이터 ${esc(S.cdPath)}</span>` : '';
 let selCats = new Set(store.get('cats2', ['champ', 'skill', 'item', 'summ', 'rune']).filter(k => k in CATS));
 let selTiers = new Set(store.get('tiers5', [1, 2, 3, 4, 5]).filter(k => k in TIER));
 let selCnt = store.get('cnt', 10);
@@ -173,6 +173,7 @@ function renderSettings() {
   const F = S.fill || newFill(), fl = o => Object.entries(o).map(([k, v]) => `${esc(k)} ${v}`).join(', ') || '없음';
   $('#fillInfo').innerHTML = `<div>• DD에 비어 있어 <b style="color:#c9a6ff">CommunityDragon</b>으로 채움: ${fl(F.CD)}</div>
     <div>• CD에 비어 있어 <b style="color:#8cc3ff">Data Dragon</b>으로 채움: ${fl(F.DD)}</div>
+    <div>• Data Dragon과 달라서 <b style="color:#c9a6ff">실제 게임 데이터</b>로 바로잡은 값: ${fl(F.CDG)}</div>
     <div>• CD에만 있는 챔피언 ${F.cdOnlyChamps}명 · DD에만 있는 챔피언 ${F.ddOnlyChamps}명</div>`;
   const D = store.get('lastDiff', null);
   $('#chgInfo').innerHTML = D && D.changes.length ? `<div class="mut" style="font-size:13px;margin-bottom:6px">${esc(D.from)} → ${esc(D.to)} · ${D.changes.length}건</div><div class="changes">${D.changes.slice(0, 120).map(ch => {

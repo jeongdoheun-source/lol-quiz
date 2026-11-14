@@ -88,27 +88,37 @@ function mask(text, names) {
   for (const n of [...new Set(all)].sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(reEsc(n), 'gi'), '○○○');
   return t;
 }
-async function detailed(pred = () => true) {
-  let list = [...S.details.values()].filter(pred);
+/** game = true 이면 실제 게임 데이터(bin.json)까지 반영된 챔피언만 사용 */
+async function detailed(pred = () => true, game = false) {
+  const P = d => (!game || d.gameTried) && pred(d);
+  let list = [...S.details.values()].filter(P);
   if (list.length < 5 || Math.random() < 0.4) {
     const pool = S.champs.filter(c => !S.details.has(c.key));
-    for (let i = 0; i < 2 && pool.length; i++) { try { const d = await loadDetail(pick(pool)); if (pred(d)) { prefetch(2); return d; } } catch (e) {} }
-    list = [...S.details.values()].filter(pred);
+    for (let i = 0; i < 2 && pool.length; i++) {
+      try { const d = await loadDetail(pick(pool)); if (game) await applyGame(d); if (P(d)) { prefetch(2); return d; } } catch (e) {}
+    }
+    if (game) await Promise.allSettled(shuffle([...S.details.values()].filter(d => !d.gameTried)).slice(0, 3).map(applyGame));
+    list = [...S.details.values()].filter(P);
   }
   prefetch(2);
   return list.length ? pick(list) : null;
 }
-async function detailedMany(n, pred = () => true) {
-  let list = [...S.details.values()].filter(pred);
+async function detailedMany(n, pred = () => true, game = false) {
+  const P = d => (!game || d.gameTried) && pred(d);
+  let list = [...S.details.values()].filter(P);
   for (let round = 0; round < 3 && list.length < n; round++) {
     const pool = shuffle(S.champs.filter(c => !S.details.has(c.key))).slice(0, Math.max(5, n - list.length + 2));
-    if (!pool.length) break;
     await Promise.allSettled(pool.map(c => loadDetail(c)));
-    list = [...S.details.values()].filter(pred);
-    if (detailBroken()) break;
+    if (game) await Promise.allSettled(shuffle([...S.details.values()].filter(d => !d.gameTried)).slice(0, n + 2).map(applyGame));
+    list = [...S.details.values()].filter(P);
+    if (detailBroken() || (!pool.length && !game)) break;
   }
   return shuffle(list);
 }
+/** 충전형(탄약) 스킬은 cooldownTime이 실제 재사용 시간이 아니므로 쿨타임 문제에서 제외 */
+const cdOk = s => !!(s && s.cooldown && s.cooldown[0] > 0 && !s.ammo);
+const srcOf = arr => [...new Set(arr.filter(Boolean))];
+const wasNote = s => s && s.cooldownWas ? `※ Data Dragon에는 ${fmtArr(s.cooldownWas.v)}초로 적혀 있지만, 실제 게임 데이터(CommunityDragon) 값인 ${fmtArr(s.cooldown)}초를 썼어요.` : '';
 const spellOf = (d, K) => K === 'P' ? d.passive : d.spells.find(s => s.key === K);
 const keyLabel = K => K === 'P' ? '패시브' : K;
 const sec = x => fmt(x) + '초';
@@ -156,7 +166,7 @@ gen('champ', 1, 1, async () => {
   const d = ds[0], R = spellOf(d, 'R');
   return Q('champ', `${d.champ.name}의 궁극기(R) 이름은 무엇일까요?`, R.name, ds.slice(1).map(x => spellOf(x, 'R').name), {
     sig: () => sigS(d.key, 'R', 'name'), needs: { d: [d.key] }, champ: d.key, srcs: [R.src.name],
-    explain: ex(`${d.champ.name}의 R은 「${R.name}」입니다.`, R.cooldown ? `레벨별 재사용 대기시간: ${fmtArr(R.cooldown)}초` : '', R.desc ? `효과: ${trunc(R.desc, 160)}` : '') });
+    explain: ex(`${d.champ.name}의 R은 「${R.name}」입니다.`, R.desc ? `효과: ${trunc(R.desc, 160)}` : '') });
 }, { d: true });
 function pairBucket(k, label, verb, ask, th, why) {
   return async () => {
@@ -298,48 +308,48 @@ gen('skill', 2, 1, async () => {
   const s = pick([...d.spells, d.passive].filter(x => x && x.icons.length));
   return Q('skill', '이 스킬 아이콘은 어느 챔피언의 스킬일까요?', d.champ.name, champDistractors(d.champ), {
     img: s.icons, imgClass: 'icon', sig: () => sigS(d.key, s.key, 'name'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.name],
-    explain: ex(`${d.champ.name}의 ${keyLabel(s.key)} 「${s.name}」 아이콘입니다.`, s.cooldown ? `재사용 대기시간 ${fmtArr(s.cooldown)}초` : '') });
+    explain: ex(`${d.champ.name}의 ${keyLabel(s.key)} 「${s.name}」 아이콘입니다.`) });
 }, { d: true });
 gen('skill', 2, 2, async () => {
-  const ds = await detailedMany(5, d => { const R = spellOf(d, 'R'); return R && R.cooldown && R.cooldown[0] > 0; }); if (!ds.length) return null;
+  const ds = await detailedMany(5, d => cdOk(spellOf(d, 'R')), true); if (!ds.length) return null;
   const d = ds[0], R = spellOf(d, 'R'), v = R.cooldown[0];
   return Q('skill', `${d.champ.name}의 궁극기 「${R.name}」 1레벨 재사용 대기시간은 몇 초일까요?`, sec(v), numericOptions(v, ds.map(x => spellOf(x, 'R').cooldown[0])).map(sec), {
     sig: () => sigS(d.key, 'R', 'cooldown'), needs: { d: [d.key] }, champ: d.key, srcs: [R.src.cooldown],
-    explain: ex(`레벨별 재사용 대기시간: ${R.cooldown.map((x, i) => `${i + 1}레벨 ${x}초`).join(' → ')}`,
+    explain: ex(`레벨별 재사용 대기시간: ${R.cooldown.map((x, i) => `${i + 1}레벨 ${x}초`).join(' → ')}`, wasNote(R),
       `💡 상대가 6레벨에 궁을 쓰면 ${sec(v)} 동안은 궁이 없습니다. 이 시간에 들어가는 게 안전한 교전 타이밍이에요.`) });
 }, { d: true });
 gen('skill', 3, 2, async () => {
-  const ds = await detailedMany(5, d => d.spells.some(s => s.key !== 'R' && s.cooldown && s.cooldown[0] > 0)); if (!ds.length) return null;
-  const d = ds[0], s = pick(d.spells.filter(x => x.key !== 'R' && x.cooldown && x.cooldown[0] > 0));
+  const ds = await detailedMany(5, d => d.spells.some(s => s.key !== 'R' && cdOk(s)), true); if (!ds.length) return null;
+  const d = ds[0], s = pick(d.spells.filter(x => x.key !== 'R' && cdOk(x)));
   const maxR = Math.random() < 0.5, i = maxR ? s.cooldown.length - 1 : 0, v = s.cooldown[i];
-  const pool = ds.flatMap(x => x.spells.filter(y => y.key === s.key && y.cooldown).map(y => y.cooldown[Math.min(i, y.cooldown.length - 1)]));
+  const pool = ds.flatMap(x => x.spells.filter(y => y.key === s.key && cdOk(y)).map(y => y.cooldown[Math.min(i, y.cooldown.length - 1)]));
   return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 ${maxR ? s.cooldown.length + '레벨(최대)' : '1레벨'} 재사용 대기시간은 몇 초일까요?`, sec(v), numericOptions(v, pool).map(sec), {
     sig: () => sigS(d.key, s.key, 'cooldown'), needs: { d: [d.key] }, champ: d.key, srcs: [s.src.cooldown],
-    explain: ex(`레벨별: ${s.cooldown.map((x, j) => `${j + 1}레벨 ${x}초`).join(' → ')}`,
+    explain: ex(`레벨별: ${s.cooldown.map((x, j) => `${j + 1}레벨 ${x}초`).join(' → ')}`, wasNote(s),
       new Set(s.cooldown).size > 1 ? `💡 이 스킬은 레벨을 올리면 쿨타임이 ${n2(s.cooldown[0] - s.cooldown[s.cooldown.length - 1])}초 줄어듭니다. 선마 여부를 정할 때 이 감소폭을 보세요.` : '💡 이 스킬은 레벨을 올려도 쿨타임이 줄지 않습니다.') });
 }, { d: true });
 gen('skill', 3, 1, async () => {
-  const ds = await detailedMany(6, d => { const R = spellOf(d, 'R'); return R && R.cooldown && R.cooldown[0] > 0; });
+  const ds = await detailedMany(6, d => cdOk(spellOf(d, 'R')), true);
   const cs = [], seen = new Set();
   for (const d of ds) { const v = spellOf(d, 'R').cooldown[0]; if (seen.has(v)) continue; seen.add(v); cs.push([d, v]); if (cs.length >= OPTS) break; }
   if (cs.length < OPTS) return null;
   const lo = Math.random() < 0.5; cs.sort((a, b) => lo ? a[1] - b[1] : b[1] - a[1]);
   return Q('skill', `다음 중 궁극기 1레벨 재사용 대기시간이 가장 ${lo ? '짧은' : '긴'} 챔피언은 누구일까요?`, cs[0][0].champ.name, cs.slice(1).map(x => x[0].champ.name), {
-    srcs: ['DD'], sig: () => cs.map(([d]) => sigS(d.key, 'R', 'cooldown')).join(), needs: { d: cs.map(([d]) => d.key) },
+    srcs: srcOf(cs.map(([d]) => spellOf(d, 'R').src.cooldown)), sig: () => cs.map(([d]) => sigS(d.key, 'R', 'cooldown')).join(), needs: { d: cs.map(([d]) => d.key) },
     explain: ex(...cs.map(([d, v], i) => `${i + 1}. ${d.champ.name} ${sec(v)}`), `💡 궁 쿨타임이 짧은 챔피언은 궁을 써서 라인 교전을 걸고도 다음 오브젝트 전에 궁이 돌아옵니다.`) });
 }, { d: true });
 gen('skill', 3, 1, async () => {
-  const ds = await detailedMany(6, d => d.spells.some(s => s.cooldown && s.cooldown.length > 1));
-  const all = ds.flatMap(d => d.spells.filter(s => s.cooldown && s.cooldown.length > 1).map(s => ({ d, s })));
+  const ds = await detailedMany(6, d => d.spells.some(s => cdOk(s) && s.cooldown.length > 1), true);
+  const all = ds.flatMap(d => d.spells.filter(s => cdOk(s) && s.cooldown.length > 1).map(s => ({ d, s })));
   const flat = all.filter(x => new Set(x.s.cooldown).size === 1), dec = all.filter(x => new Set(x.s.cooldown).size > 1);
   if (!flat.length || dec.length < 4) return null;
   const c = pick(flat), wr = shuffle(dec).slice(0, 4), lab = x => `${x.d.champ.name} ${x.s.key} 「${x.s.name}」`;
   return Q('skill', '다음 중 스킬 레벨을 올려도 재사용 대기시간이 줄지 않는 스킬은 무엇일까요?', lab(c), wr.map(lab), {
-    long: true, srcs: ['DD'], sig: () => [c, ...wr].map(x => sigS(x.d.key, x.s.key, 'cooldown')).join(), needs: { d: [c, ...wr].map(x => x.d.key) },
+    long: true, srcs: srcOf([c, ...wr].map(x => x.s.src.cooldown)), sig: () => [c, ...wr].map(x => sigS(x.d.key, x.s.key, 'cooldown')).join(), needs: { d: [c, ...wr].map(x => x.d.key) },
     explain: ex(...[c, ...wr].map(x => `• ${lab(x)}: ${fmtArr(x.s.cooldown)}초`), `💡 쿨타임이 고정인 스킬은 레벨을 올려도 쿨타임이 줄지 않아서, 보통 다른 스킬을 먼저 올리는 편이 이득입니다.`) });
 }, { d: true });
 gen('skill', 3, 1, async () => {
-  const d = await detailed(x => x.spells.some(s => s.manaCost && s.manaCost[0] > 0)); if (!d) return null;
+  const d = await detailed(x => x.spells.some(s => s.manaCost && s.manaCost[0] > 0), true); if (!d) return null;
   const s = pick(d.spells.filter(x => x.manaCost && x.manaCost[0] > 0)), v = s.manaCost[0];
   const pool = [...S.details.values()].flatMap(x => x.spells.filter(y => y.manaCost).map(y => y.manaCost[0]));
   return Q('skill', `${d.champ.name}의 ${s.key} 「${s.name}」 1레벨 마나 소모량은 얼마일까요?`, fmt(v), numericOptions(v, pool, { step: 5 }).map(fmt), {
@@ -347,20 +357,20 @@ gen('skill', 3, 1, async () => {
     explain: ex(`레벨별 마나: ${s.manaCost.map((x, j) => `${j + 1}레벨 ${x}`).join(' → ')}`, d.champ.stats && d.champ.stats.mp ? `💡 레벨 1 최대 마나 ${fmt(d.champ.stats.mp)} 기준으로 ${Math.floor(d.champ.stats.mp / v)}번 쓸 수 있어요 (${fmt(d.champ.stats.mp)} ÷ ${fmt(v)}, 마나 재생 제외).` : '') });
 }, { d: true });
 gen('skill', 3, 2, async () => {
-  const d = await detailed(x => x.champ.stats && x.champ.stats.mp > 0 && x.spells.some(s => s.manaCost && s.manaCost[0] > 0)); if (!d) return null;
+  const d = await detailed(x => x.champ.stats && x.champ.stats.mp > 0 && x.spells.some(s => s.manaCost && s.manaCost[0] > 0), true); if (!d) return null;
   const c = d.champ, s = pick(d.spells.filter(x => x.manaCost && x.manaCost[0] > 0)), n = pick([1, 3, 6]);
   const lv = Math.min(s.manaCost.length, n === 1 ? 1 : n === 3 ? 2 : 3), cost = s.manaCost[lv - 1];
   const mp = lvlStat(c, 'mp', n), times = Math.floor(mp / cost);
   return Q('skill', `레벨 ${n} ${J(c.name, '이')} 마나가 가득 찬 상태에서 ${s.key} 「${s.name}」(${lv}레벨)만 연속으로 쓴다면 몇 번까지 쓸 수 있을까요? (마나 재생·아이템 제외)`, times + '번',
     numericOptions(times, [times + 1, times - 1, times + 2, Math.floor(c.stats.mp / cost)], { step: 1 }).map(x => x + '번'), {
-    sig: () => sigS(d.key, s.key, 'manaCost') + sigC(c.key, 'stats.mp') + sigC(c.key, 'stats.mpperlevel'), needs: { d: [d.key] }, champ: c.key, srcs: ['DD'],
+    sig: () => sigS(d.key, s.key, 'manaCost') + sigC(c.key, 'stats.mp') + sigC(c.key, 'stats.mpperlevel'), needs: { d: [d.key] }, champ: c.key, srcs: srcOf([s.src.cost, 'DD']),
     explain: ex(n > 1 ? lvlLines(c, 'mp', n, '최대 마나') : `① 레벨 1 최대 마나 = ${fmt(c.stats.mp)}`,
       `④ ${n2(mp)} ÷ ${s.key} ${lv}레벨 소모량 ${fmt(cost)} = ${n2(mp / cost)} → 내림하면 ${times}번`,
       `💡 ${times}번 쓰고 나면 마나가 ${n2(mp - times * cost)} 남습니다. 라인에서 견제를 몇 번까지 할 수 있는지 이 계산으로 가늠할 수 있어요.`) });
 }, { d: true });
 gen('skill', 3, 1, async () => {
   const ok = s => s.range && s.range[0] >= 100 && s.range[0] < 5000;
-  const d = await detailed(x => x.champ.stats && x.spells.some(ok)); if (!d) return null;
+  const d = await detailed(x => x.champ.stats && x.spells.some(ok), true); if (!d) return null;
   const s = pick(d.spells.filter(ok)), ar = d.champ.stats.attackrange, v = s.range[0] - ar;
   const pool = [...S.details.values()].filter(x => x.champ.stats).flatMap(x => x.spells.filter(ok).map(y => y.range[0] - x.champ.stats.attackrange));
   const lab = x => (x > 0 ? '+' : '') + fmt(x);
@@ -371,21 +381,21 @@ gen('skill', 3, 1, async () => {
       v > 0 ? `💡 이 스킬은 평타보다 ${fmt(v)} 멀리 닿습니다. 상대 평타 사거리 밖에서 이 스킬로 견제하는 게 기본 운영이에요.` : `💡 이 스킬은 평타보다 ${fmt(-v)} 짧아서, 쓰려면 평타 사거리 안으로 더 들어가야 합니다.`) });
 }, { d: true });
 gen('skill', 4, 2, async () => {
-  const ds = await detailedMany(5, d => { const R = spellOf(d, 'R'); return R && R.cooldown && R.cooldown[0] >= 20; }); if (ds.length < 2) return null;
+  const ds = await detailedMany(5, d => { const R = spellOf(d, 'R'); return cdOk(R) && R.cooldown[0] >= 20; }, true); if (ds.length < 2) return null;
   const [a, b] = ds, Ra = spellOf(a, 'R'), Rb = spellOf(b, 'R'); const lv = pick([1, 2, 3]);
   const ca = Ra.cooldown[Math.min(lv, Ra.cooldown.length) - 1], cb = Rb.cooldown[Math.min(lv, Rb.cooldown.length) - 1];
   if (ca === cb) return null; const v = Math.abs(ca - cb), first = ca < cb ? a : b, later = ca < cb ? b : a;
   return Q('skill', `한타에서 ${a.champ.name}${josa(a.champ.name, '과')} ${b.champ.name}${josa(b.champ.name, '이')} 동시에 ${lv}레벨 궁극기를 썼습니다. 스킬 가속이 없다면, 궁이 먼저 돌아오는 쪽은 상대보다 몇 초 먼저 궁을 다시 쓸 수 있을까요?`, sec(v),
     numericOptions(v, [ca, cb, Math.round(v / 2), v + 10, v + 20], { step: 5 }).map(sec), {
-    srcs: ['DD'], sig: () => sigS(a.key, 'R', 'cooldown') + sigS(b.key, 'R', 'cooldown'), needs: { d: [a.key, b.key] },
+    srcs: srcOf([Ra.src.cooldown, Rb.src.cooldown]), sig: () => sigS(a.key, 'R', 'cooldown') + sigS(b.key, 'R', 'cooldown'), needs: { d: [a.key, b.key] },
     explain: ex(`① ${a.champ.name} R ${lv}레벨 쿨타임 ${sec(ca)}, ${b.champ.name} R ${lv}레벨 쿨타임 ${sec(cb)}`, `② 차이 = |${ca} − ${cb}| = ${sec(v)}`,
       `💡 ${first.champ.name}${josa(first.champ.name, '은')} 궁을 쓰고 ${sec(Math.min(ca, cb))} 뒤에 다시 쓸 수 있고, 그때부터 ${sec(v)} 동안은 ${later.champ.name}만 궁이 없습니다. 이 틈이 다음 교전을 걸 타이밍이에요.`) });
 }, { d: true });
 gen('skill', 4, 2, async () => {
   const I = await ensure('items'); const ahItems = I.list.filter(m => itemStat(m, '스킬 가속') > 0 && ['legendary', 'epic', 'boots'].includes(m.kind));
   if (!ahItems.length) return null;
-  const d = await detailed(x => x.spells.some(s => s.cooldown && s.cooldown[0] >= 3)); if (!d) return null;
-  const s = pick(d.spells.filter(x => x.cooldown && x.cooldown[0] >= 3)), lv = rand(s.cooldown.length), base = s.cooldown[lv];
+  const d = await detailed(x => x.spells.some(s => cdOk(s) && s.cooldown[0] >= 3), true); if (!d) return null;
+  const s = pick(d.spells.filter(x => cdOk(x) && x.cooldown[0] >= 3)), lv = rand(s.cooldown.length), base = s.cooldown[lv];
   const items = shuffle(ahItems).slice(0, 1 + rand(Math.min(2, ahItems.length))), ah = items.reduce((a, m) => a + itemStat(m, '스킬 가속'), 0);
   const v = r1(hasteCd(base, ah));
   const wr = [ah < 100 ? r1(base * (1 - ah / 100)) : null, r1(hasteCd(base, ah * 2)), r1(hasteCd(base, ah / 2)), r1(base - ah / 10), r1(hasteCd(base, ah) + 1), base].filter(x => x > 0 && x !== v);
@@ -398,7 +408,7 @@ gen('skill', 4, 2, async () => {
 }, { d: true, need: 'items' });
 gen('skill', 5, 2, async () => {
   const I = await ensure('items'); const ahItems = I.list.filter(m => itemStat(m, '스킬 가속') > 0 && ['legendary', 'epic', 'boots'].includes(m.kind)); if (!ahItems.length) return null;
-  const d = await detailed(x => { const R = spellOf(x, 'R'); return R && R.cooldown && R.cooldown.length >= 3 && R.cooldown[0] >= 20; }); if (!d) return null;
+  const d = await detailed(x => { const R = spellOf(x, 'R'); return cdOk(R) && R.cooldown.length >= 3 && R.cooldown[0] >= 20; }, true); if (!d) return null;
   const R = spellOf(d, 'R'), base = R.cooldown[R.cooldown.length - 1];
   const items = shuffle(ahItems).slice(0, Math.min(3, ahItems.length)), ah = items.reduce((a, m) => a + itemStat(m, '스킬 가속'), 0);
   const cd = hasteCd(base, ah), times = Math.floor(600 / cd), noAh = Math.floor(600 / base);

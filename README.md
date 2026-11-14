@@ -26,6 +26,12 @@ https://jeongdoheun-source.github.io/lol-quiz/
 골드 효율은 기본 아이템(롱소드 등)으로 능력치 1당 가격을 구하고, 고유 효과가 없는 아이템으로 나머지 능력치 가치를 역산해서 계산합니다.
 
 ## 데이터 소스와 상호 보강
+**스킬 수치(쿨타임·마나·사거리) 우선순위:** CommunityDragon 게임 데이터 `game/data/characters/{챔피언}/{챔피언}.bin.json` → CD `champions/{key}.json` → DD
+- Data Dragon의 스킬 수치는 실제 게임과 다르게 남아 있는 경우가 많아서, 게임 파일에서 직접 뽑은 값을 씁니다.
+- 배열 규칙: `cooldownTime`·`castRange`는 1번 칸부터, `mana`는 0번 칸부터가 스킬 1레벨 값입니다.
+- 충전형 스킬(`mMaxAmmo`, `mAmmoRechargeTime`)은 쿨타임 문제에서 뺍니다.
+- DD 값과 달라서 바로잡은 경우에는 해설에 "Data Dragon에는 ○○초로 적혀 있지만 실제 게임 데이터 값을 썼어요"라고 표시합니다.
+
 - **챔피언:** DD `champion.json`, `champion/{id}.json` ↔ CD `champion-summary.json`, `champions/{key}.json`
 - **아이템:** DD `item.json` ↔ CD `items.json` (이름·가격·하위/상위·설명 중 빈 항목을 서로 채움)
 - **소환사 주문:** DD `summoner.json` ↔ CD `summoner-spells.json`
