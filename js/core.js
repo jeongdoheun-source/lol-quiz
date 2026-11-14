@@ -281,9 +281,69 @@ function parseGameBin(bin) {
     if (!sp) return null;
     const arr = x => Array.isArray(x) ? x.map(Number) : null;
     return { key: SLOTS[i], cd: arr(sp.cooldownTime), mana: arr(sp.mana), range: arr(sp.castRange),
-      ammo: !!(sp.mMaxAmmo > 1 || Array.isArray(sp.mAmmoRechargeTime) || sp.mAmmoRechargeTime > 0) };
+      ammo: !!(sp.mMaxAmmo > 1 || Array.isArray(sp.mAmmoRechargeTime) || sp.mAmmoRechargeTime > 0), raw: sp };
   });
   return { spells };
+}
+
+/* ---- 스킬 피해 계산식 (게임 데이터 DataValues + mSpellCalculations) ----
+ * mValues[0]은 쓰이지 않고 [1]이 스킬 1레벨 값이에요 (쿨타임 배열과 같은 규칙).
+ * 아래 능력치 번호 해석은 공개된 bin 파일 관례를 따른 것이라, 모르는 번호가 나오면 그 계산식은 통째로 버리고 문제를 만들지 않아요. */
+const STAT_AP = 0, STAT_AD = 2;                       // mStat 생략/0 = 주문력, 2 = 공격력
+const FORM_TOTAL = 0, FORM_BASE = 1, FORM_BONUS = 2;  // mStatFormula 생략/0 = 합계, 1 = 기본, 2 = 추가
+function statKind(part) {
+  const st = part.mStat == null ? STAT_AP : part.mStat, f = part.mStatFormula == null ? FORM_TOTAL : part.mStatFormula;
+  if (st === STAT_AP && f === FORM_TOTAL) return 'ap';
+  if (st === STAT_AD) return f === FORM_BONUS ? 'bad' : f === FORM_BASE ? 'bsad' : f === FORM_TOTAL ? 'ad' : null;
+  return null;
+}
+/** 계산식을 { flat, r: {ap, ad, bad, bsad} } 형태(1차식)로 평가. 해석 못 하면 null */
+function evalCalc(calc, dv, rank, all, depth = 0) {
+  if (!calc || depth > 6) return null;
+  const add = (a, b, k = 1) => { if (!a || !b) return null; const r = { ...a.r }; for (const x in b.r) r[x] = (r[x] || 0) + b.r[x] * k; return { flat: a.flat + b.flat * k, r }; };
+  const scale = (a, k) => { if (!a) return null; const r = {}; for (const x in a.r) r[x] = a.r[x] * k; return { flat: a.flat * k, r }; };
+  const isConst = a => a && !Object.keys(a.r).length;
+  const dval = n => { const v = dv[n]; return Array.isArray(v) && typeof v[rank] === 'number' ? v[rank] : null; };
+  const part = pt => {
+    if (!pt || typeof pt !== 'object') return null;
+    const t = String(pt.__type || '');
+    if (/^NumberCalculationPart$/.test(t)) return typeof pt.mNumber === 'number' ? { flat: pt.mNumber, r: {} } : null;
+    if (/^NamedDataValueCalculationPart$/.test(t)) { const v = dval(pt.mDataValue); return v == null ? null : { flat: v, r: {} }; }
+    if (/^StatByCoefficientCalculationPart$/.test(t)) { const k = statKind(pt); return k && typeof pt.mCoefficient === 'number' ? { flat: 0, r: { [k]: pt.mCoefficient } } : null; }
+    if (/^StatByNamedDataValueCalculationPart$/.test(t)) { const k = statKind(pt), v = dval(pt.mDataValue); return k && v != null ? { flat: 0, r: { [k]: v } } : null; }
+    if (/^SumOfSubPartsCalculationPart$/.test(t)) { let a = { flat: 0, r: {} }; for (const x of pt.mSubparts || []) a = add(a, part(x)); return a; }
+    if (/^ProductOfSubPartsCalculationPart$/.test(t)) {
+      const a = part(pt.mPart1), b = part(pt.mPart2); if (!a || !b) return null;
+      if (isConst(a)) return scale(b, a.flat); if (isConst(b)) return scale(a, b.flat); return null;
+    }
+    return null;
+  };
+  const t = String(calc.__type || '');
+  if (/^GameCalculationModified$/.test(t)) {
+    const base = all && all[calc.mModifiedGameCalculation]; const m = part(calc.mMultiplier);
+    const b = evalCalc(base, dv, rank, all, depth + 1); return b && isConst(m) ? scale(b, m.flat) : null;
+  }
+  if (calc.mDisplayAsPercent) return null;
+  let acc = { flat: 0, r: {} };
+  for (const x of calc.mFormulaParts || []) acc = add(acc, part(x)); if (!acc) return null;
+  if (calc.mMultiplier) { const m = part(calc.mMultiplier); if (!isConst(m)) return null; acc = scale(acc, m.flat); }
+  return acc;
+}
+const DMG_NAME = /damage|dmg/i, DMG_SKIP = /heal|shield|mana|cooldown|reduc|percent|pct|ratio|max.?health|current.?health|missing|\bcap\b|monster|minion.*bonus|tooltip/i;
+/** 스킬 하나의 피해 항목 목록: [{ name, ranks: [{flat, r}, ...] }] */
+function buildDamage(sp, maxrank) {
+  if (!sp) return null;
+  const dvArr = sp.DataValues || sp.mDataValues, calcs = sp.mSpellCalculations;
+  if (!Array.isArray(dvArr) || !calcs || typeof calcs !== 'object') return null;
+  const dv = {}; for (const x of dvArr) if (x && x.mName && Array.isArray(x.mValues)) dv[x.mName] = x.mValues.map(Number);
+  const hits = [];
+  for (const [name, calc] of Object.entries(calcs)) {
+    if (!DMG_NAME.test(name) || DMG_SKIP.test(name)) continue;
+    const ranks = [];
+    for (let r = 1; r <= maxrank; r++) { const v = evalCalc(calc, dv, r, calcs); if (!v) break; ranks.push(v); }
+    if (ranks.length === maxrank && ranks.every(v => v.flat > 0 || Object.keys(v.r).length)) hits.push({ name, ranks });
+  }
+  return hits.length ? hits : null;
 }
 async function applyGame(d) {
   if (!d || d.gameTried) return d;
@@ -300,6 +360,8 @@ async function applyGame(d) {
           const s = d.spells.find(x => x.key === gs.key); if (!s) continue;
           const m = s.maxrank;
           s.ammo = gs.ammo;
+          s.dmg = buildDamage(gs.raw, m);
+          s.dmgSrc = s.dmg ? 'CDG' : null;
           const cd = gs.cd && gs.cd.length > m ? gs.cd.slice(1, m + 1) : null;
           if (cd && cd.some(x => x > 0)) {
             if (s.cooldown && JSON.stringify(s.cooldown) !== JSON.stringify(cd)) { s.cooldownWas = { v: s.cooldown, src: s.src.cooldown }; bump('CDG', '스킬 쿨타임'); }

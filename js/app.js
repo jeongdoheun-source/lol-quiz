@@ -190,6 +190,21 @@ document.querySelectorAll('input[name=track]').forEach(r => r.onchange = () => {
 $('#pollSel').onchange = e => { settings.pollMin = +e.target.value; saveSettings(); schedule(); toast(`${settings.pollMin}분마다 새 패치를 확인합니다`); };
 $('#checkNow').onclick = () => checkForUpdate('manual');
 $('#forceReload').onclick = () => checkForUpdate('force');
+$('#dumpBin').onclick = async () => {
+  const out = $('#dumpOut'); out.style.display = 'block'; out.value = '불러오는 중…';
+  const res = {};
+  for (const alias of ['aatrox', 'zoe', 'ahri']) {
+    try {
+      const bin = await getJSON(U.cdGameBin(S.cdPath, alias), { timeout: 20000 });
+      const g = parseGameBin(bin); res[alias] = {};
+      (g ? g.spells : []).forEach(sp => {
+        if (!sp) return; const r = sp.raw;
+        res[alias][sp.key] = { dataValues: (r.DataValues || r.mDataValues || []).map(x => [x.mName, x.mValues]), calcs: r.mSpellCalculations || null, parsed: (buildDamage(r, 3) || []).map(h => h.name) };
+      });
+    } catch (e) { res[alias] = String(e && e.message || e); }
+  }
+  out.value = JSON.stringify(res); out.select();
+};
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.ready && Date.now() >= S.nextCheck) checkForUpdate(); });
 window.addEventListener('online', () => { if (S.ready) checkForUpdate(); });
 

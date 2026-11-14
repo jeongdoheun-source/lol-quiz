@@ -639,7 +639,7 @@ gen('rune', 2, 2, async () => {
       `❌ 보조 빌드는 주 빌드(${t.name})와 같은 빌드일 수 없어요.`,
       `❌ ${otherK.name}${josa(otherK.name, '은')} ${otherK.treeName}의 핵심 룬이라 ${t.name}${josa(t.name, '을')} 주 빌드로 하면 고를 수 없어요.`) });
 }, runeOpt);
-gen('rune', 3, 2, async () => {
+gen('rune', 2, 2, async () => {
   const R = await ensure('runes'); const r = pick(R.runes.filter(x => !x.keystone));
   const t = R.trees.find(x => x.id === r.tree), row = t.slots[r.slot].filter(id => id !== r.id).map(id => R.byId.get(id)).filter(Boolean);
   if (!row.length) return null; const c = pick(row);
@@ -649,12 +649,127 @@ gen('rune', 3, 2, async () => {
     explain: ex(`${t.name}의 줄 구성:`, ...t.slots.map((ids, i) => `${i === 0 ? '핵심' : (i + 1) + '번째 줄'}: ${ids.map(id => (R.byId.get(id) || {}).name).filter(Boolean).join(' / ')}`),
       `→ 「${r.name}」${josa(r.name, '은')} ${r.slot + 1}번째 줄이라 같은 줄의 ${row.map(x => x.name).join(', ')}${josa(row.map(x => x.name).join(', '), '과')} 동시에 고를 수 없어요.`) });
 }, runeOpt);
-gen('rune', 3, 1, async () => {
+gen('rune', 2, 1, async () => {
   const R = await ensure('runes'); const r = pick(R.runes.filter(x => x.desc && x.desc.length > 15));
   const same = R.runes.filter(x => x.id !== r.id && x.tree === r.tree), wr = shuffle(same.length >= 4 ? same : R.runes.filter(x => x.id !== r.id)).slice(0, 4);
   return Q('rune', `다음 설명에 해당하는 룬은 무엇일까요?<div class="quote">“${esc(trunc(mask(r.desc, [r.name]), 200))}”</div>`, r.name, wr.map(x => x.name), {
     raw: true, srcs: [r.src.desc], sig: () => sigR(r.id), explain: ex(`정답: 「${r.name}」 — ${r.treeName} · ${r.keystone ? '핵심 룬' : (r.slot + 1) + '번째 줄'}`, r.desc) });
 }, runeOpt);
+
+/* =====================================================================
+ *  스킬 피해 (4단계) — 게임 데이터의 DataValues · mSpellCalculations 값만 사용
+ * ===================================================================== */
+const STAT_KO = { ap: '주문력', ad: '총 공격력', bad: '추가 공격력', bsad: '기본 공격력' };
+const hasDmg = d => d.spells.some(s => s.dmg && s.dmg.length);
+/** 피해 항목 이름에서 시전 단계·적중 구역을 읽어 문장으로 만든다 (모르면 게임 데이터 항목명과 순번만 보여 줌) */
+function hitInfo(s, h) {
+  const idx = s.dmg.indexOf(h) + 1, tot = s.dmg.length;
+  const ORD = [[/first|1st/i, 1], [/second|2nd|recast/i, 2], [/third|3rd/i, 3], [/fourth|4th/i, 4]];
+  let step = (ORD.find(([re]) => re.test(h.name)) || [])[1];
+  if (!step) { const m = /(?:[A-Za-z])([1-5])(?:Damage|Dmg)?$/.exec(h.name) || /^[QWER]([1-5])/.exec(h.name); if (m) step = +m[1]; }
+  const area = /sweet|center|centre|core|tip|inner/i.test(h.name) ? '가장 효과가 큰 구역에 맞은 경우' : /edge|outer|rim/i.test(h.name) ? '가장자리에 맞은 경우' : '';
+  const parts = [];
+  if (tot > 1) parts.push(`총 ${tot}개 중 ${idx}번째`);
+  if (step) parts.push(`${step}번째 시전(타격) 단계`);
+  const where = parts.length ? `${parts.join(', ')}인 ` : '';
+  return { idx, tot, step, area, where, tag: `「${h.name}」`, text: `${where}피해 항목 「${h.name}」${area ? `, ${area}` : ''}` };
+}
+const rankDmg = (h, r) => h.ranks[r - 1];
+const dmgValue = (v, st) => v.flat + Object.entries(v.r).reduce((a, [k, c]) => a + c * (st[k] || 0), 0);
+const kinds = v => Object.keys(v.r).filter(k => v.r[k]);
+const pctC = x => +(x * 100).toFixed(2);
+const dmgPick = async (pred = () => true) => {
+  const ds = await detailedMany(6, d => hasDmg(d), true); if (!ds.length) return null;
+  for (const d of ds) {
+    const c = S.byKey.get(d.key) || d.champ; if (!c || !c.stats) continue;
+    const cand = []; for (const s of d.spells) if (s.dmg) for (const h of s.dmg) for (let r = 1; r <= h.ranks.length; r++) if (pred(h.ranks[r - 1], h, s, c)) cand.push({ d, c, s, h, r });
+    if (cand.length) return pick(cand);
+  }
+  return null;
+};
+const needsKey = x => ({ d: [x.d.key] });
+const dmgSig = x => () => sigS(x.d.key, x.s.key, 'dmg');
+const dmgNote = x => `※ 계산식은 게임 데이터의 「${x.h.name}」 항목이에요. 피해는 방어력·마법 저항력·피해 감소 효과를 적용하기 전 수치입니다.`;
+
+gen('skill', 4, 2, async () => {
+  const x = await dmgPick(v => v.flat > 0 && kinds(v).length === 1); if (!x) return null;
+  const { d, s, h, r } = x, v = rankDmg(h, r), k = kinds(v)[0], hi = hitInfo(s, h);
+  const askBase = Math.random() < 0.5, ans = askBase ? v.flat : pctC(v.r[k]);
+  const pool = askBase ? s.dmg.flatMap(y => y.ranks.map(z => z.flat)) : s.dmg.flatMap(y => y.ranks.map(z => pctC(z.r[k] || 0)));
+  const opts = numericOptions(ans, pool, { step: askBase ? 5 : 5 }).map(askBase ? fmt : t => fmt(t) + '%');
+  const rankTxt = h.ranks.map((z, i) => `${i + 1}레벨 ${fmt(z.flat)}`).join(' / ');
+  return Q('skill', askBase
+    ? `${d.champ.name}의 ${s.key} 「${s.name}」 ${r}레벨에서 ${hi.text}의 고정 기본 피해(계수 제외)는 얼마일까요?`
+    : `${d.champ.name}의 ${s.key} 「${s.name}」 ${hi.text}에서 ${STAT_KO[k]} 계수는 몇 %일까요?`,
+    askBase ? fmt(ans) : fmt(ans) + '%', opts, {
+      long: true, sig: dmgSig(x), needs: needsKey(x), champ: d.key, srcs: ['CDG'],
+      explain: ex(`게임 데이터의 「${h.name}」 계산식: 피해 = 기본 피해 + ${STAT_KO[k]} × 계수`,
+        `레벨별 기본 피해: ${rankTxt}`, `${STAT_KO[k]} 계수: ${fmt(pctC(v.r[k]))}%` + (new Set(h.ranks.map(z => z.r[k] || 0)).size > 1 ? ' (레벨마다 달라요)' : ' (스킬 레벨이 올라도 같아요)'),
+        askBase ? `${r}레벨의 기본 피해는 ${fmt(v.flat)}입니다.` : `${r}레벨 기준 계수는 ${fmt(pctC(v.r[k]))}%입니다.`,
+        s.dmg.length > 1 ? `💡 이 스킬은 피해 항목이 ${s.dmg.length}개(${s.dmg.map(y => y.name).join(', ')})라서, 몇 번째 항목인지 구분하지 않으면 전혀 다른 숫자가 나옵니다.` : '💡 기본 피해는 스킬 레벨에 따라 오르고, 계수는 템으로 올린 능력치가 피해에 얼마나 더해지는지를 정합니다.', dmgNote(x)) });
+}, { d: true });
+
+gen('skill', 4, 3, async () => {
+  const x = await dmgPick(v => kinds(v).length >= 1 && kinds(v).length <= 2); if (!x) return null;
+  const { d, c, s, h, r } = x, v = rankDmg(h, r), hi = hitInfo(s, h), n = pick([3, 6, 9, 11, 13, 16]);
+  const baseAD = lvlStat(c, 'attackdamage', n), st = {}, given = [];
+  const usesAD = kinds(v).some(k => k !== 'ap');
+  if (v.r.ap) { st.ap = pick([60, 100, 150, 200, 250, 300, 400, 500]); given.push(`주문력 ${st.ap}`); }
+  if (usesAD) {
+    const bonus = pick([20, 40, 60, 80, 100, 130, 160, 200]); st.bsad = baseAD; st.bad = bonus; st.ad = baseAD + bonus;
+    given.push(`기본 공격력 ${n2(baseAD)}, 추가 공격력 ${bonus}(총 공격력 ${n2(baseAD + bonus)})`);
+  }
+  const ans = Math.round(dmgValue(v, st));
+  const wrong = new Set();
+  const add = t => { t = Math.round(t); if (t !== ans && t > 0) wrong.add(t); };
+  if (r > 1) add(dmgValue(rankDmg(h, r - 1), st)); if (r < h.ranks.length) add(dmgValue(rankDmg(h, r + 1), st));
+  add(v.flat);
+  if (v.r.bad) add(dmgValue({ flat: v.flat, r: { ad: v.r.bad } }, st));
+  if (v.r.ad) add(dmgValue({ flat: v.flat, r: { bad: v.r.ad } }, st));
+  if (v.r.ap) add(v.flat + v.r.ap * st.ap * 2);
+  const wr = [...wrong].slice(0, OPTS - 1); const pool = h.ranks.map(z => dmgValue(z, st));
+  const opts = [...new Set([...wr, ...numericOptions(ans, pool, { step: Math.max(5, Math.round(ans * 0.04)) })])].filter(t => t !== ans).slice(0, OPTS - 1);
+  const stepLines = kinds(v).map(k => `${STAT_KO[k]} ${fmt(k === 'ap' ? st.ap : k === 'ad' ? n2(st.ad) : k === 'bad' ? st.bad : n2(st.bsad))} × ${fmt(pctC(v.r[k]))}% = ${n2((k === 'ap' ? st.ap : st[k]) * v.r[k])}`);
+  return Q('skill', `레벨 ${n} ${J(d.champ.name, '이')} ${s.key} 「${s.name}」 ${r}레벨로 ${hi.text}에 해당하는 피해를 한 번 적중시켰습니다. ${given.join(', ')}일 때 들어가는 피해는 얼마일까요? (방어력·마법 저항력 적용 전, 반올림)`,
+    fmt(ans), opts.map(fmt), {
+      long: true, sig: dmgSig(x), needs: needsKey(x), champ: d.key, srcs: ['CDG', 'DD'],
+      explain: ex(`① ${r}레벨 기본 피해: ${fmt(v.flat)}`, ...stepLines.map((l, i) => `${i + 2}. ${l}`),
+        `② 합계: ${fmt(v.flat)} + ${kinds(v).map(k => n2((k === 'ap' ? st.ap : st[k]) * v.r[k])).join(' + ')} = ${n2(dmgValue(v, st))} → 반올림 ${fmt(ans)}`,
+        usesAD ? `💡 계수가 「추가 공격력」이면 기본 공격력은 빼고 템·룬으로 늘어난 공격력만 곱합니다. 총 공격력과 헷갈리는 게 가장 흔한 실수예요. (이 문제의 기본 공격력은 레벨 ${n}의 ${n2(baseAD)})` : '💡 주문력 계수 스킬은 주문력 아이템 한 개를 사면 계수만큼 피해가 늘어납니다. 기본 피해는 스킬 레벨로만 오릅니다.',
+        hi.tot > 1 ? `💡 같은 스킬이라도 ${hi.tot}개 항목 중 어느 쪽인지에 따라 값이 다릅니다. 이 문제는 「${h.name}」 기준이에요.` : '', dmgNote(x)) });
+}, { d: true });
+
+gen('skill', 4, 3, async () => {
+  const I = await ensure('items');
+  const items = I.list.filter(m => ['legendary', 'epic', 'basic'].includes(m.kind) && (itemStat(m, '공격력') > 0 || itemStat(m, '주문력') > 0)
+    && !/공격력|주문력/.test(strip((m.desc || '').replace(/<stats>[\s\S]*?<\/stats>/i, ''))));
+  if (items.length < 2) return null;
+  const x = await dmgPick(v => kinds(v).length >= 1); if (!x) return null;
+  const { d, c, s, h, r } = x, v = rankDmg(h, r), hi = hitInfo(s, h), n = pick([6, 9, 11, 13, 16]);
+  const fit = items.filter(m => (v.r.ap && itemStat(m, '주문력') > 0) || ((v.r.ad || v.r.bad) && itemStat(m, '공격력') > 0));
+  if (!fit.length) return null;
+  const bought = shuffle(fit).slice(0, Math.random() < 0.5 ? 1 : 2);
+  const AP = bought.reduce((a, m) => a + itemStat(m, '주문력'), 0), BAD = bought.reduce((a, m) => a + itemStat(m, '공격력'), 0);
+  const baseAD = lvlStat(c, 'attackdamage', n), st = { ap: AP, bad: BAD, bsad: baseAD, ad: baseAD + BAD };
+  const val = (vv, o = st) => dmgValue(vv, o), ans = Math.round(val(v));
+  const none = Math.round(val(v, { ap: 0, bad: 0, bsad: baseAD, ad: baseAD }));
+  if (ans === none) return null;
+  const wrong = new Set(); const add = t => { t = Math.round(t); if (t !== ans && t > 0) wrong.add(t); };
+  add(none); add(v.flat); if (r > 1) add(val(rankDmg(h, r - 1))); if (r < h.ranks.length) add(val(rankDmg(h, r + 1)));
+  if (v.r.ad || v.r.bad) add(val({ flat: v.flat, r: { ad: v.r.bad || v.r.ad } }, { ad: baseAD + BAD, bad: baseAD + BAD }) );
+  const pool = bought.length > 1 ? [val(v, { ...st, ap: AP - itemStat(bought[1], '주문력'), bad: BAD - itemStat(bought[1], '공격력'), ad: baseAD + BAD - itemStat(bought[1], '공격력') })] : [];
+  const opts = [...new Set([...wrong, ...numericOptions(ans, pool.map(Math.round).concat(h.ranks.map(z => Math.round(val(z)))), { step: Math.max(5, Math.round(ans * 0.04)) })])].filter(t => t !== ans).slice(0, OPTS - 1);
+  const names = bought.map(m => m.name).join(' + ');
+  const stepLines = kinds(v).map(k => { const sv = k === 'ap' ? AP : k === 'bad' ? BAD : k === 'ad' ? baseAD + BAD : baseAD; return `${STAT_KO[k]} ${n2(sv)} × ${fmt(pctC(v.r[k]))}% = ${n2(sv * v.r[k])}`; });
+  return Q('skill', `레벨 ${n} ${J(d.champ.name, '이')} 아이템으로 ${names}만 가지고 있습니다. ${s.key} 「${s.name}」 ${r}레벨로 ${hi.text}에 해당하는 피해를 한 번 적중시키면 들어가는 피해는 얼마일까요? (룬·아이템 고유 효과·방어력과 마법 저항력은 무시, 반올림)`,
+    fmt(ans), opts.map(fmt), {
+      long: true, need: 'items', sig: () => dmgSig(x)() + bought.map(m => sigI(m.id, 'stats')).join(), needs: needsKey(x), champ: d.key, srcs: ['CDG', 'DD'],
+      explain: ex(`① 아이템 능력치: ${bought.map(m => `${m.name}(${statsText(m)})`).join(' + ')} → 주문력 ${AP}, 추가 공격력 ${BAD}`,
+        `② ${r}레벨 기본 피해 ${fmt(v.flat)}에 계수 적용:`, ...stepLines,
+        `③ 합계: ${fmt(v.flat)} + ${kinds(v).map(k => { const sv = k === 'ap' ? AP : k === 'bad' ? BAD : k === 'ad' ? baseAD + BAD : baseAD; return n2(sv * v.r[k]); }).join(' + ')} = ${n2(val(v))} → 반올림 ${fmt(ans)}`,
+        `비교: 아이템이 없을 때는 ${fmt(none)}이므로 이 아이템으로 피해가 ${fmt(ans - none)} 늘었습니다.`,
+        (v.r.ad || v.r.bsad) ? `💡 레벨 ${n} 기본 공격력은 ${n2(baseAD)}이고, 계수 종류(총/추가/기본)에 따라 곱하는 값이 달라집니다.` : '💡 주문력 계수 스킬은 아이템 하나가 곧 계수만큼의 피해 증가로 이어집니다. 아이템 가격 대비 피해 증가를 비교할 때 쓰는 계산이에요.', dmgNote(x)) });
+}, { d: true, need: 'items' });
 
 /* =====================================================================
  *  패치 변경 (이전 버전 스냅샷과 비교해 자동 생성)
