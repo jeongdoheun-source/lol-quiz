@@ -3,7 +3,7 @@
  *  app.js — 화면
  * ===================================================================== */
 const srcTag = s => s === 'DD' ? `<span class="src dd">Data Dragon ${esc(S.dd)}</span>` : s === 'CD' ? `<span class="src cd">CommunityDragon ${esc(S.cdPath)}</span>` : s === 'CDG' ? `<span class="src cd">CommunityDragon 게임 데이터 ${esc(S.cdPath)}</span>` : '';
-let selCats = new Set(store.get('cats3', ['champ', 'skill', 'item', 'summ']).filter(k => k in CATS));
+let selCats = new Set(store.get('cats2', ['champ', 'skill', 'item', 'summ', 'rune']).filter(k => k in CATS));
 let selTiers = new Set(store.get('tiers5', [1, 2, 3, 4, 5]).filter(k => k in TIER));
 let selCnt = store.get('cnt', 10);
 const best = () => store.get('best2', { acc: null, streak: 0, pts: 0 });
@@ -41,7 +41,7 @@ function renderHome() {
   if (!S.ready && !S.loading && (S.loadErr || ERRORS.length)) { eb.hidden = false; eb.innerHTML = errorHTML('데이터를 불러오지 못했어요') + '<button class="btn" id="retryLoad" style="margin-top:12px">다시 시도</button>'; }
   else eb.hidden = true;
 }
-$('#catChips').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b || b.disabled) return; const k = b.dataset.cat; selCats.has(k) ? selCats.delete(k) : selCats.add(k); store.set('cats3', [...selCats]); renderHome(); });
+$('#catChips').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b || b.disabled) return; const k = b.dataset.cat; selCats.has(k) ? selCats.delete(k) : selCats.add(k); store.set('cats2', [...selCats]); renderHome(); });
 $('#tierChips').addEventListener('click', e => { const b = e.target.closest('[data-tier]'); if (!b) return; const k = +b.dataset.tier; selTiers.has(k) ? selTiers.delete(k) : selTiers.add(k); store.set('tiers5', [...selTiers]); renderHome(); });
 $('#cntChips').addEventListener('click', e => { const b = e.target.closest('[data-cnt]'); if (!b) return; selCnt = +b.dataset.cnt; store.set('cnt', selCnt); renderHome(); });
 $('#startBtn').addEventListener('click', startGame);

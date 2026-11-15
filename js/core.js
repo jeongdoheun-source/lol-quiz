@@ -283,8 +283,7 @@ function parseGameBin(bin) {
     return { key: SLOTS[i], cd: arr(sp.cooldownTime), mana: arr(sp.mana), range: arr(sp.castRange),
       ammo: !!(sp.mMaxAmmo > 1 || Array.isArray(sp.mAmmoRechargeTime) || sp.mAmmoRechargeTime > 0), raw: sp };
   });
-  const num = x => typeof x === 'number' && x > 0 ? x : null;
-  return { spells, asRatio: num(rec.attackSpeedRatio), asBase: num(rec.attackSpeed) };
+  return { spells };
 }
 
 /* ---- 스킬 피해 계산식 (게임 데이터 DataValues + mSpellCalculations) ----
@@ -354,7 +353,7 @@ async function applyGame(d) {
     try {
       const g = parseGameBin(await getJSON(U.cdGameBin(p, alias), { timeout: 20000 }));
       if (g && ver === S.dd) {
-        d.game = true; d.asRatio = g.asRatio; d.asBase = g.asBase;
+        d.game = true;
         const isMana = /마나|mana/i.test(c.partype || '');
         for (const gs of g.spells) {
           if (!gs) continue;
