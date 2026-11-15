@@ -224,18 +224,6 @@ gen('champ', 3, 1, async () => {
       `💡 ${J(L.name, '은')} ${Sh.name}보다 ${fmt(v)} 더 먼 곳에서 기본 공격을 할 수 있어서, ${Sh.name}의 평타가 닿지 않는 거리에서 일방적으로 견제할 수 있어요. 반대로 ${J(Sh.name, '은')} 그만큼 앞으로 들어가야 해서 미니언 막타를 칠 때 견제를 받기 쉽습니다.`) });
 });
 const LV = { hp: '체력', armor: '방어력', spellblock: '마법 저항력', attackdamage: '공격력', mp: '마나' };
-gen('champ', 3, 2, async () => {
-  const pool = withStats().filter(x => x.stats.attackdamage > 0 && x.stats.hp > 0 && typeof x.stats.armor === 'number');
-  const a = pick(pool), b = pick(pool.filter(x => x.key !== a.key));
-  const per = a.stats.attackdamage * dmgTaken(b.stats.armor), hits = Math.ceil(b.stats.hp / per);
-  const wr = numericOptions(hits, [Math.ceil(b.stats.hp / a.stats.attackdamage), hits + 1, hits - 1, hits + 2, hits - 2], { step: 1 });
-  return Q('champ', `레벨 1에서 아이템·룬·치명타 없이 ${J(a.name, '이')} 기본 공격만으로 ${J(b.name, '을')} 처치하려면 몇 대를 때려야 할까요?`, hits + '대', wr.map(x => x + '대'), {
-    srcs: ['DD'], sig: () => sigC(a.key, 'stats') + sigC(b.key, 'stats'),
-    explain: ex(`① ${b.name}의 방어력 ${fmt(b.stats.armor)} → 받는 물리 피해 배율 = 100 ÷ (100 + ${fmt(b.stats.armor)}) = ${n4(dmgTaken(b.stats.armor))}`,
-      `② 평타 1대 피해 = ${a.name} 공격력 ${fmt(a.stats.attackdamage)} × ${n4(dmgTaken(b.stats.armor))} = ${n2(per)}`,
-      `③ ${b.name} 체력 ${fmt(b.stats.hp)} ÷ ${n2(per)} = ${n2(b.stats.hp / per)} → 올림하면 ${hits}대`,
-      `💡 방어력을 빼먹고 ${fmt(b.stats.hp)} ÷ ${fmt(a.stats.attackdamage)}로 계산하면 ${Math.ceil(b.stats.hp / a.stats.attackdamage)}대가 나와 실제보다 적게 잡게 됩니다. 1레벨 교전에서 몇 대 더 버티는지 감을 잡는 계산이에요.`) });
-});
 gen('champ', 4, 2, async () => {
   const k = pick(['hp', 'armor', 'spellblock', 'attackdamage']), n = pick([6, 9, 11, 13, 16, 18]);
   const pool = withStats().filter(x => typeof x.stats[k] === 'number' && typeof x.stats[k + 'perlevel'] === 'number');
@@ -283,22 +271,6 @@ gen('champ', 4, 1, async () => {
       Math.abs(growthMul(n) - (n - 1)) > 0.05 ? `⚠️ 단순히 ${fmt(c.stats.attackspeedperlevel)}% × ${n - 1} = ${n2(c.stats.attackspeedperlevel * (n - 1))}%로 계산하면 틀립니다.` : '',
       `💡 레벨업으로 얻는 공격 속도는 '추가 공격 속도'라서 아이템 공격 속도와 똑같이 합산됩니다.`) });
 });
-gen('champ', 5, 2, async () => {
-  const n = pick([1, 6, 11, 16, 18]), pool = withStats().filter(x => x.stats.hp && x.stats.armor);
-  const phys = Math.random() < 0.6, rk = phys ? 'armor' : 'spellblock', rl = phys ? '방어력' : '마법 저항력';
-  const ehp = c => Math.round(lvlStat(c, 'hp', n) * (1 + lvlStat(c, rk, n) / 100));
-  const cs = [], seen = new Set();
-  for (const c of shuffle(pool.filter(x => typeof x.stats[rk] === 'number'))) { const v = ehp(c); if (seen.has(v)) continue; seen.add(v); cs.push([c, v]); if (cs.length >= OPTS) break; }
-  if (cs.length < OPTS) return null; cs.sort((a, b) => b[1] - a[1]);
-  const lines = cs.map(([c, v]) => `• ${c.name}: 체력 ${n2(lvlStat(c, 'hp', n))} × (1 + ${n2(lvlStat(c, rk, n))}/100) = ${v}`);
-  return Q('champ', `아이템과 룬이 없는 레벨 ${n} 기준으로 ${phys ? '물리' : '마법'} 피해에 가장 단단한(유효 체력이 가장 높은) 챔피언은 누구일까요?`, cs[0][0].name, cs.slice(1).map(x => x[0].name), {
-    srcs: ['DD'], sig: () => cs.map(([c]) => sigC(c.key, 'stats')).join(),
-    explain: ex(`유효 체력 = 체력 × (1 + ${rl}/100). ${n > 1 ? `레벨 ${n} 스탯은 성장 배수 ${n2(growthMul(n))}로 계산했어요.` : ''}`, ...lines,
-      (() => { const hpTop = [...cs].sort((a, b) => lvlStat(b[0], 'hp', n) - lvlStat(a[0], 'hp', n))[0][0], top = cs[0][0];
-        return hpTop === top ? `💡 ${J(top.name, '은')} 체력도 가장 높고 ${rl}까지 반영해도 가장 단단합니다.`
-          : `💡 체력만 보면 ${J(hpTop.name, '이')} 가장 높지만, ${J(rl, '을')} 함께 반영하면 ${J(top.name, '이')} 더 단단합니다. 체력 수치만 보고 판단하면 안 되는 이유예요.`; })()) });
-});
-
 /* =====================================================================
  *  스킬 · 쿨타임
  * ===================================================================== */
@@ -507,35 +479,6 @@ gen('item', 3, 1, async () => {
   return Q('item', `${J(z.name, '을')} 가진 상태에서 ${J(m.name, '을')} 완성하려면 골드가 얼마나 더 필요할까요?`, gold(v), numericOptions(v, [m.total, m.base, Math.round(v + z.total / 2), v + 100, v - 100], { step: 50 }).map(gold), {
     srcs: ['DD'], sig: () => sigI(m.id, 'total') + sigI(z.id, 'total'),
     explain: ex(`① ${m.name} 총 가격 ${m.total}`, `② 이미 가진 ${z.name} 가격 ${z.total}${josa(z.total, '은')} 그대로 인정됩니다`, `③ ${m.total} − ${z.total} = ${v}골드`, `💡 귀환 전에 이 금액이 모였는지 확인하면 완성 타이밍을 놓치지 않아요.`) });
-}, itemOpt);
-gen('item', 5, 2, async () => {
-  const I = await ensure('items'); const n = pick([6, 9, 11, 13]);
-  const phys = Math.random() < 0.6, rl = phys ? '방어력' : '마법 저항력', rk = phys ? 'armor' : 'spellblock';
-  const c = pick(withStats().filter(x => typeof x.stats[rk] === 'number' && x.stats[rk + 'perlevel'] != null));
-  const H = lvlStat(c, 'hp', n), A = lvlStat(c, rk, n), base = H * (1 + A / 100);
-  const cand = I.list.filter(m => ['legendary', 'epic', 'basic'].includes(m.kind) && (itemStat(m, '체력') > 0 || itemStat(m, rl) > 0));
-  const cs = [], seen = new Set();
-  for (const m of shuffle(cand)) { const h = itemStat(m, '체력'), a = itemStat(m, rl); const gain = Math.round((H + h) * (1 + (A + a) / 100) - base); if (seen.has(gain)) continue; seen.add(gain); cs.push({ m, h, a, gain }); if (cs.length >= OPTS) break; }
-  if (cs.length < OPTS) return null; cs.sort((x, y) => y.gain - x.gain);
-  return Q('item', `아이템이 없는 레벨 ${n} ${J(c.name, '이')} 다음 중 하나를 산다면, ${phys ? '물리' : '마법'} 피해 기준 유효 체력이 가장 많이 늘어나는 아이템은 무엇일까요?`, cs[0].m.name, cs.slice(1).map(x => x.m.name), {
-    long: true, srcs: ['DD'], sig: () => sigC(c.key, 'stats') + cs.map(x => sigI(x.m.id, 'stats')).join(), champ: c.key,
-    explain: ex(`① 레벨 ${n} ${c.name}: 체력 ${n2(H)}, ${rl} ${n2(A)} → 유효 체력 ${n2(H)} × (1 + ${n2(A)}/100) = ${Math.round(base)}`,
-      ...cs.map(x => `• ${x.m.name} (체력 +${x.h}, ${rl} +${x.a}): (${n2(H + x.h)}) × (1 + ${n2(A + x.a)}/100) − ${Math.round(base)} = +${x.gain}`),
-      `💡 체력이 많은 챔피언에게는 ${rl}${josa(rl, '이')}, ${rl}${josa(rl, '이')} 높은 챔피언에게는 체력이 더 효율적입니다. 체력과 ${rl}${josa(rl, '을')} 균형 있게 올릴수록 유효 체력이 가장 많이 늘어요.`) });
-}, itemOpt);
-gen('item', 4, 1, async () => {
-  const I = await ensure('items'); const adItems = I.list.filter(m => itemStat(m, '공격력') > 0 && ['legendary', 'epic', 'basic'].includes(m.kind)); if (!adItems.length) return null;
-  const n = pick([1, 3, 6]), pool = withStats().filter(x => x.stats.attackdamage > 0 && x.stats.attackdamageperlevel != null && typeof x.stats.armor === 'number');
-  const a = pick(pool), b = pick(pool.filter(x => x.key !== a.key)), it = pick(adItems);
-  const AD = lvlStat(a, 'attackdamage', n) + itemStat(it, '공격력'), AR = lvlStat(b, 'armor', n), HP = lvlStat(b, 'hp', n);
-  const per = AD * dmgTaken(AR), hits = Math.ceil(HP / per), noItem = Math.ceil(HP / (lvlStat(a, 'attackdamage', n) * dmgTaken(AR)));
-  return Q('item', `${it.name}만 산 레벨 ${n} ${J(a.name, '이')} 아이템이 없는 같은 레벨 ${J(b.name, '을')} 기본 공격만으로 처치하려면 몇 대가 필요할까요? (치명타·룬 제외)`, hits + '대',
-    numericOptions(hits, [noItem, Math.ceil(HP / AD), hits + 1, hits - 1, hits + 2], { step: 1 }).map(x => x + '대'), {
-    long: false, srcs: ['DD'], sig: () => sigC(a.key, 'stats') + sigC(b.key, 'stats') + sigI(it.id, 'stats'),
-    explain: ex(`① ${a.name} 공격력 = 레벨 ${n} 기본 ${n2(lvlStat(a, 'attackdamage', n))} + ${it.name} ${itemStat(it, '공격력')} = ${n2(AD)}`,
-      `② ${b.name} 레벨 ${n}: 체력 ${n2(HP)}, 방어력 ${n2(AR)} → 받는 피해 배율 100 ÷ (100 + ${n2(AR)}) = ${n4(dmgTaken(AR))}`,
-      `③ 평타 1대 = ${n2(AD)} × ${n4(dmgTaken(AR))} = ${n2(per)}`, `④ ${n2(HP)} ÷ ${n2(per)} = ${n2(HP / per)} → 올림 ${hits}대`,
-      `💡 이 아이템이 없을 때는 ${noItem}대가 필요합니다. 아이템 하나로 줄어드는 평타 수가 바로 라인전 킬각이에요.`) });
 }, itemOpt);
 gen('item', 5, 2, async () => {
   const I = await ensure('items'); const pool = I.list.filter(x => x.eff && !x.isRef && ['legendary', 'epic', 'boots'].includes(x.kind));
@@ -778,6 +721,118 @@ gen('skill', 4, 3, async () => {
         `③ 합계: ${fmt(v.flat)} + ${kinds(v).map(k => { const sv = k === 'ap' ? AP : k === 'bad' ? BAD : k === 'ad' ? baseAD + BAD : baseAD; return n2(sv * v.r[k]); }).join(' + ')} = ${n2(val(v))} → 반올림 ${fmt(ans)}`,
         `비교: 아이템이 없을 때는 ${fmt(none)}이므로 이 아이템으로 피해가 ${fmt(ans - none)} 늘었습니다.`,
         (v.r.ad || v.r.bsad) ? `💡 레벨 ${n} 기본 공격력은 ${n2(baseAD)}이고, 계수 종류(총/추가/기본)에 따라 곱하는 값이 달라집니다.` : '💡 주문력 계수 스킬은 아이템 하나가 곧 계수만큼의 피해 증가로 이어집니다. 아이템 가격 대비 피해 증가를 비교할 때 쓰는 계산이에요.', dmgNote(x)) });
+}, { d: true, need: 'items' });
+
+/* =====================================================================
+ *  추천 아이템 빌드 × 스킬 가속 — 챔피언 추천 아이템(CD → DD → 게임 데이터)과 그 하위 재료로 빌드를 짬
+ * ===================================================================== */
+const REC_SRC = { CD: 'CommunityDragon 추천 아이템', DD: 'Data Dragon 추천 아이템', CDG: 'CommunityDragon 게임 데이터 추천 아이템', ROLE: '추천 목록이 비어 있어 역할군에 맞춘 아이템' };
+const AHs = m => itemStat(m, '스킬 가속');
+/** 아이템의 하위 재료 전체(여러 단계) */
+function compsOf(m, I, out = new Map(), depth = 0) {
+  if (!m || depth > 4) return out;
+  for (const id of m.fromSR || []) { const z = I.byId.get(id); if (z && !out.has(id)) { out.set(id, z); compsOf(z, I, out, depth + 1); } }
+  return out;
+}
+function recPool(d, I) {
+  const ok = m => m && m.sr !== false && m.purch !== false && m.total > 0;
+  let src = d.rec && d.rec.src, items = (d.rec ? d.rec.ids : []).map(id => I.byId.get(id)).filter(ok);
+  let leg = items.filter(m => m.kind === 'legendary'), boots = items.filter(m => m.kind === 'boots');
+  if (leg.length < 3) {
+    const tags = (d.champ.tags || []).join(' '), want = /Mage/.test(tags) ? ['주문력'] : /Tank|Support/.test(tags) ? ['체력', '방어력', '마법 저항력'] : ['공격력'];
+    leg = I.list.filter(m => ok(m) && m.kind === 'legendary' && want.some(w => itemStat(m, w) > 0) && AHs(m) > 0);
+    boots = I.list.filter(m => ok(m) && m.kind === 'boots'); src = 'ROLE';
+  }
+  return { leg, boots, src };
+}
+const buildSpell = d => {
+  const ss = d.spells.filter(s => cdOk(s) && s.cooldown[0] >= 3); if (!ss.length) return null;
+  const s = pick(ss), lv = s.key === 'R' ? Math.min(3, s.cooldown.length) : s.cooldown.length;
+  return { s, lv, base: s.cooldown[lv - 1] };
+};
+const lvTxt = (s, lv) => `${s.key} 「${s.name}」(${lv}레벨${lv === s.cooldown.length ? ', 최대' : ''})`;
+const isPart = m => !(m.kind === 'legendary' || m.kind === 'boots');
+const ahLines = parts => parts.map(m => `• ${m.name}${isPart(m) ? ' (재료)' : ''}: ${AHs(m) ? '스킬 가속 ' + AHs(m) : '스킬 가속 없음'}`);
+const recNote = src => `※ 빌드는 ${REC_SRC[src]} 목록에서 골랐어요.`;
+async function buildBase() {
+  const I = await ensure('items');
+  const d = await detailed(x => x.spells.some(s => cdOk(s) && s.cooldown[0] >= 3), true); if (!d) return null;
+  const P = recPool(d, I); if (P.leg.length < 2) return null;
+  const sp = buildSpell(d); if (!sp) return null;
+  return { I, d, P, ...sp };
+}
+const cdOpts = (v, base, ah, extra = []) => numericOptions(v, [r1(base * Math.max(0.05, 1 - ah / 100)), r1(hasteCd(base, ah * 2)), r1(hasteCd(base, ah / 2)), base, ...extra].filter(x => x > 0 && x !== v), { step: 0.5, decimals: 1 });
+const buildSig = (x, parts) => () => sigS(x.d.key, x.s.key, 'cooldown') + parts.map(m => sigI(m.id, 'stats')).join();
+
+/* 완성 빌드 → 스킬 쿨타임 */
+gen('skill', 3, 3, async () => {
+  const x = await buildBase(); if (!x) return null;
+  const { d, P, s, lv, base } = x;
+  const parts = shuffle(P.leg).slice(0, 2 + rand(2)); if (P.boots.length && Math.random() < 0.6) parts.push(pick(P.boots));
+  const ah = parts.reduce((a, m) => a + AHs(m), 0); if (!ah) return null;
+  const v = r1(hasteCd(base, ah));
+  return Q('skill', `${J(d.champ.name, '이')} ${parts.map(m => m.name).join(', ')}${josa(parts[parts.length - 1].name, '을')} 갖췄습니다. 룬과 다른 가속이 없다면 ${lvTxt(s, lv)}의 재사용 대기시간은 몇 초일까요? (소수 첫째 자리)`,
+    sec(v), cdOpts(v, base, ah).map(sec), {
+      long: true, need: 'items', needs: { d: [d.key] }, champ: d.key, srcs: srcOf([s.src.cooldown, P.src === 'DD' ? 'DD' : 'CD']), sig: buildSig(x, parts),
+      explain: ex('① 아이템별 스킬 가속:', ...ahLines(parts), `② 합계 = ${parts.map(AHs).join(' + ')} = ${ah}`,
+        `③ 쿨타임 = ${fmt(base)} × 100 ÷ (100 + ${ah}) = ${n2(hasteCd(base, ah))} → ${sec(v)}`,
+        `⚠️ 스킬 가속을 %처럼 보고 ${fmt(base)} × (1 − ${ah}%)로 계산하면 ${sec(r1(base * Math.max(0.05, 1 - ah / 100)))}로 틀립니다.`,
+        recNote(P.src), wasNote(s)) });
+}, { d: true, need: 'items' });
+
+/* 완성템 + 다른 추천템의 하위 재료(빛나는 티끌, 점화석 등) → 쿨타임 */
+gen('skill', 3, 3, async () => {
+  const x = await buildBase(); if (!x) return null;
+  const { I, d, P, s, lv, base } = x;
+  const targets = shuffle(P.leg).filter(m => [...compsOf(m, I).values()].some(z => AHs(z) > 0)); if (!targets.length) return null;
+  const goal = targets[0], done = pick(P.leg.filter(m => m.id !== goal.id)); if (!done) return null;
+  const cs = shuffle([...compsOf(goal, I).values()].filter(z => AHs(z) > 0)).slice(0, 1 + rand(2));
+  const parts = [done, ...cs], ah = parts.reduce((a, m) => a + AHs(m), 0), v = r1(hasteCd(base, ah));
+  const noComp = r1(hasteCd(base, AHs(done)));
+  return Q('skill', `${J(d.champ.name, '이')} ${J(done.name, '을')} 완성했고, 다음 아이템 ${goal.name}의 재료인 ${cs.map(z => z.name).join(', ')}${josa(cs[cs.length - 1].name, '을')} 사 두었습니다. 룬과 다른 가속이 없다면 ${lvTxt(s, lv)}의 재사용 대기시간은 몇 초일까요? (소수 첫째 자리)`,
+    sec(v), cdOpts(v, base, ah, [noComp]).map(sec), {
+      long: true, need: 'items', needs: { d: [d.key] }, champ: d.key, srcs: srcOf([s.src.cooldown, P.src === 'DD' ? 'DD' : 'CD']), sig: buildSig(x, parts),
+      explain: ex('① 스킬 가속을 주는 아이템:', ...ahLines(parts), `② 합계 = ${parts.map(AHs).join(' + ')} = ${ah}`,
+        `③ 쿨타임 = ${fmt(base)} × 100 ÷ (100 + ${ah}) = ${n2(hasteCd(base, ah))} → ${sec(v)}`,
+        `⚠️ 완성템만 세면 ${sec(noComp)}가 나옵니다. 재료 아이템의 스킬 가속도 인벤토리에 있는 동안 그대로 적용돼요.`,
+        `💡 ${goal.name}${josa(goal.name, '을')} 완성하기 전에 가속 재료부터 사면 귀환 한 번으로도 쿨타임이 줄어듭니다.`, recNote(P.src), wasNote(s)) });
+}, { d: true, need: 'items' });
+
+/* 부분 빌드의 스킬 가속 합계 */
+gen('skill', 2, 2, async () => {
+  const I = await ensure('items');
+  const d = await detailed(() => true); if (!d) return null;
+  const P = recPool(d, I); if (P.leg.length < 2) return null;
+  const goal = pick(P.leg), cs = [...compsOf(goal, I).values()].filter(z => AHs(z) > 0);
+  const done = pick(P.leg.filter(m => m.id !== goal.id && AHs(m) > 0).concat(P.leg.filter(m => m.id !== goal.id)));
+  const parts = [done, ...shuffle(cs).slice(0, 2)]; if (P.boots.length && Math.random() < 0.5) parts.push(pick(P.boots));
+  const ah = parts.reduce((a, m) => a + AHs(m), 0); if (!ah || parts.length < 2) return null;
+  const onlyFull = parts.filter(m => m.kind === 'legendary' || m.kind === 'boots').reduce((a, m) => a + AHs(m), 0);
+  return Q('skill', `${d.champ.name}의 인벤토리에 ${parts.map(m => m.name).join(', ')}${josa(parts[parts.length - 1].name, '이')} 있습니다. 아이템으로 얻는 스킬 가속은 모두 얼마일까요?`,
+    fmt(ah), numericOptions(ah, [onlyFull, ah + 5, ah - 5, ah + 10, ah + 15].filter(t => t > 0 && t !== ah), { step: 5 }).map(fmt), {
+      need: 'items', needs: { d: [d.key] }, champ: d.key, srcs: [P.src === 'DD' ? 'DD' : 'CD', 'DD'], sig: () => parts.map(m => sigI(m.id, 'stats')).join(),
+      explain: ex(...ahLines(parts), `합계 = ${parts.map(AHs).join(' + ')} = ${ah}`,
+        onlyFull !== ah ? `⚠️ 완성 아이템만 세면 ${onlyFull}입니다. 재료의 스킬 가속도 빠짐없이 더해야 해요.` : '',
+        recNote(P.src)) });
+}, { d: true, need: 'items' });
+
+/* 쿨타임이 가장 짧아지는 빌드 고르기 */
+gen('skill', 4, 2, async () => {
+  const x = await buildBase(); if (!x) return null;
+  const { I, d, P, s, lv, base } = x;
+  const builds = [], seenAh = new Set();
+  for (let i = 0; i < 60 && builds.length < OPTS; i++) {
+    const main = shuffle(P.leg).slice(0, 2), goal = pick(P.leg.filter(m => !main.includes(m)).concat(main));
+    const cs = shuffle([...compsOf(goal, I).values()].filter(z => AHs(z) > 0)).slice(0, rand(2));
+    const parts = [...new Set([...main, ...(main.includes(goal) ? [] : cs)])], ah = parts.reduce((a, m) => a + AHs(m), 0);
+    if (seenAh.has(ah)) continue; seenAh.add(ah); builds.push({ parts, ah, cd: hasteCd(base, ah) });
+  }
+  if (builds.length < OPTS) return null; builds.sort((a, b) => a.cd - b.cd);
+  const lab = b => b.parts.map(m => m.name + (isPart(m) ? '(재료)' : '')).join(' + ');
+  return Q('skill', `${d.champ.name}의 ${lvTxt(s, lv)} 재사용 대기시간이 가장 짧아지는 빌드는 무엇일까요? (룬·다른 가속 제외)`, lab(builds[0]), builds.slice(1).map(lab), {
+    long: true, need: 'items', needs: { d: [d.key] }, champ: d.key, srcs: srcOf([s.src.cooldown, P.src === 'DD' ? 'DD' : 'CD']), sig: buildSig(x, builds.flatMap(b => b.parts)),
+    explain: ex(`기본 쿨타임 ${sec(base)} 기준:`, ...builds.map(b => `• ${lab(b)}: 가속 ${b.parts.map(AHs).join(' + ')} = ${b.ah} → ${fmt(base)} × 100 ÷ ${100 + b.ah} = ${sec(r1(b.cd))}`),
+      `💡 쿨타임은 스킬 가속 합계로만 정해지므로, 가속 합계가 가장 큰 「${lab(builds[0])}」 빌드가 정답입니다.`, recNote(P.src), wasNote(s)) });
 }, { d: true, need: 'items' });
 
 /* =====================================================================

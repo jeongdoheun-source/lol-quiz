@@ -234,6 +234,21 @@ function mergeDetail(c, dd, cd, ver, p) {
   const damageType = cd && cd.tacticalInfo ? DMG[cd.tacticalInfo.damageType] || null : null;
   return { key: c.key, champ: c, lore, loreSrc, spells, passive, skins: [...skins.values()].filter(s => s.name), damageType };
 }
+/* ---- 챔피언 추천 아이템: CD 챔피언 JSON(recommendedItemDefaults) → DD(recommended) → 게임 데이터 순으로 아이템 번호를 모음 ---- */
+function collectItemIds(o, out = new Set(), depth = 0) {
+  if (o == null || depth > 8) return out;
+  if (typeof o === 'number') { if (Number.isInteger(o) && o >= 1000 && o < 1e6) out.add(o); return out; }
+  if (typeof o === 'string') { const m = /^(?:Items\/)?(\d{4,6})$/.exec(o.trim()); if (m) out.add(+m[1]); return out; }
+  if (Array.isArray(o)) { for (const x of o) collectItemIds(x, out, depth + 1); return out; }
+  if (typeof o === 'object') for (const [k, v] of Object.entries(o)) { if (/count|level|min|max|time|version/i.test(k)) continue; collectItemIds(v, out, depth + 1); }
+  return out;
+}
+function scanRecKeys(o, out = new Set(), depth = 0) {
+  if (!o || typeof o !== 'object' || depth > 7) return out;
+  for (const [k, v] of Object.entries(o)) { if (/recommend|recitem/i.test(k)) collectItemIds(v, out); else if (v && typeof v === 'object') scanRecKeys(v, out, depth + 1); }
+  return out;
+}
+function setRec(d, ids, src) { if (ids && ids.size && !(d.rec && d.rec.ids.length)) d.rec = { ids: [...ids], src }; }
 async function loadDetail(c) {
   const k = c.key;
   if (S.details.has(k)) return S.details.get(k);
@@ -249,6 +264,8 @@ async function loadDetail(c) {
     if (!dd && !cd) { S.detailFail++; throw new Error('detail load failed: ' + c.id); }
     if (ver !== S.dd) throw new Error('stale');
     const d = mergeDetail(c, dd, cd, ver, p);
+    setRec(d, cd && collectItemIds(cd.recommendedItemDefaults), 'CD');
+    setRec(d, dd && collectItemIds((dd.recommended || []).filter(r => !r.map || /SR|CLASSIC/i.test(r.map + (r.mode || '')))), 'DD');
     S.details.set(k, d); S.detailFail = 0;
     return d;
   })();
@@ -351,8 +368,10 @@ async function applyGame(d) {
   const c = d.champ, p = S.cdPath, ver = S.dd, alias = String(c.alias || c.id || '').toLowerCase();
   d.gameJob = (async () => {
     try {
-      const g = parseGameBin(await getJSON(U.cdGameBin(p, alias), { timeout: 20000 }));
+      const bin = await getJSON(U.cdGameBin(p, alias), { timeout: 20000 });
+      const g = parseGameBin(bin);
       if (g && ver === S.dd) {
+        setRec(d, scanRecKeys(bin), 'CDG');
         d.game = true;
         const isMana = /마나|mana/i.test(c.partype || '');
         for (const gs of g.spells) {
